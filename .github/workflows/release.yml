@@ -1,0 +1,49 @@
+name: Supervisely release
+run-name: Supervisely ${{ github.repository }} app release
+on:
+  workflow_call:
+    inputs:
+      SERVER_ADDRESS:
+        required: true
+      SLUG:
+        required: true
+      RELEASE_VERSION:
+        required: true
+      RELEASE_TITLE:
+        required: true
+      SUBAPP_PATHS:
+        required: true
+    secrets:
+      SUPERVISELY_API_TOKEN:
+        required: true
+      GH_ACCESS_TOKEN:
+        required: true
+      
+jobs:
+  Supervisely-Release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip uninstall -y urllib3 requests-toolbelt
+          pip install urllib3==1.26.15 requests-toolbelt==0.10.1
+      - name: Supervisely Release
+        run: |
+          python ./release.py SLUG SUBAPP_PATHS
+        env:
+          SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
+          API_TOKEN: "${{ secrets.SUPERVISELY_API_TOKEN }}"
+          GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+          SLUG: "${{ inputs.SLUG }}"
+          RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
+          RELEASE_TITLE: "${{ inputs.RELEASE_TITLE }}"
+          SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"

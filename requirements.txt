@@ -1,0 +1,2 @@
+PyGithub==1.58.1
+git+https://github.com/supervisely/supervisely.git@release-from-gh-test
