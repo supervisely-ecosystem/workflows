@@ -3,7 +3,7 @@ run-name: Supervisely ${{ github.repository }} app release
 on:
   workflow_call:
     inputs:
-      SERVER_ADDRESS:
+      SUPERVISELY_SERVER_ADDRESS:
         required: true
         type: string
       SLUG:

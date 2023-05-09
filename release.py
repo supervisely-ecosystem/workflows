@@ -130,9 +130,9 @@ def release_sly_releases(
             subapp_path = None if path == "__ROOT_APP__" else path
 
             appKey = get_appKey(repo, subapp_path, repo_url)
-            config = get_config(path)
-            readme = get_readme(path)
-            modal_template = get_modal_template(path, config)
+            config = get_config(subapp_path)
+            readme = get_readme(subapp_path)
+            modal_template = get_modal_template(subapp_path, config)
 
             app_name = get_app_name(config)
             if subapp_path is None:
@@ -182,9 +182,9 @@ def release_github(
     for path in subapp_paths:
         subapp_path = None if path == "__ROOT_APP__" else path
         appKey = get_appKey(repo, subapp_path, repo_url)
-        config = get_config(path)
-        readme = get_readme(path)
-        modal_template = get_modal_template(path, config)
+        config = get_config(subapp_path)
+        readme = get_readme(subapp_path)
+        modal_template = get_modal_template(subapp_path, config)
 
         app_name = get_app_name(config)
         if subapp_path is None:
