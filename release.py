@@ -10,6 +10,10 @@ from github import Github
 from supervisely.cli.release import release, get_appKey
 
 
+def parse_subapp_paths(subapps_paths):
+    return [p.lstrip(" ").rstrip(" ") for p in subapps_paths.split(",")]
+
+
 def get_release_name(tag):
     if tag.tag is None:
         return tag.name
@@ -217,16 +221,18 @@ def release_github(
         print_results(results)
 
 
-def run():
-    slug = sys.argv[1]
-    subapp_paths = sys.argv[2:]
+def run(
+    slug,
+    subapp_paths,
+    server_address,
+    api_token,
+    github_access_token,
+    release_version,
+    release_title,
+):
     if len(subapp_paths) == 0:
         subapp_paths = ["__ROOT_APP__"]
-    api_token = os.getenv("API_TOKEN", None)
-    server_address = os.getenv("SERVER_ADDRESS", None)
-    github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
-    release_version = os.getenv("RELEASE_VERSION", None)
-    release_title = os.getenv("RELEASE_TITLE", None)
+
     repo = git.Repo()
 
     print("Server Address:\t\t", server_address)
@@ -257,9 +263,7 @@ if __name__ == "__main__":
     print("test")
     print("args:", sys.argv[1:])
     slug = sys.argv[1]
-    subapp_paths = sys.argv[2:]
-    if len(subapp_paths) == 0:
-        subapp_paths = ["__ROOT_APP__"]
+    subapp_paths = parse_subapp_paths(sys.argv[2])
     api_token = os.getenv("API_TOKEN", None)
     server_address = os.getenv("SERVER_ADDRESS", None)
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
@@ -270,4 +274,12 @@ if __name__ == "__main__":
     print("Slug:\t\t\t", slug)
     print("Release version:\t", release_version)
     print("Release title:\t\t", release_title)
-    # run()
+    run(
+        slug=slug,
+        subapp_paths=subapp_paths,
+        server_address=server_address,
+        api_token=api_token,
+        github_access_token=github_access_token,
+        release_version=release_version,
+        release_title=release_title,
+    )
