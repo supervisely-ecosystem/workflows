@@ -38,11 +38,10 @@ def get_readme(app_path):
         return ""
 
 
-def get_modal_template(app_path, config):
-    app_path = Path(os.getcwd()) if app_path is None else Path(app_path)
+def get_modal_template(config):
     modal_template = ""
     if "modal_template" in config:
-        modal_template_path = app_path.joinpath(config["modal_template"])
+        modal_template_path = Path(config["modal_template"])
         if not modal_template_path.exists() or not modal_template_path.is_file():
             raise FileNotFoundError(modal_template_path)
         with open(modal_template_path, "r") as f:
@@ -132,7 +131,7 @@ def release_sly_releases(
             appKey = get_appKey(repo, subapp_path, repo_url)
             config = get_config(subapp_path)
             readme = get_readme(subapp_path)
-            modal_template = get_modal_template(subapp_path, config)
+            modal_template = get_modal_template(config)
 
             app_name = get_app_name(config)
             if subapp_path is None:
@@ -184,7 +183,7 @@ def release_github(
         appKey = get_appKey(repo, subapp_path, repo_url)
         config = get_config(subapp_path)
         readme = get_readme(subapp_path)
-        modal_template = get_modal_template(subapp_path, config)
+        modal_template = get_modal_template(config)
 
         app_name = get_app_name(config)
         if subapp_path is None:
