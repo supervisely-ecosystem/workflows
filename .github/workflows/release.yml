@@ -31,6 +31,10 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - uses: actions/checkout@v3
+        with:
+          repository: my-test-organisaion/workflows
+          path: workflow
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -43,7 +47,7 @@ jobs:
           pip install urllib3==1.26.15 requests-toolbelt==0.10.1
       - name: Supervisely Release
         run: |
-          python my-test-organisaion/workflows/release.py SLUG SUBAPP_PATHS
+          python ./workflow/release.py SLUG SUBAPP_PATHS
         env:
           SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
           API_TOKEN: "${{ secrets.SUPERVISELY_API_TOKEN }}"
