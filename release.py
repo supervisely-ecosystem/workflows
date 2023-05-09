@@ -260,8 +260,6 @@ def run(
 
 
 if __name__ == "__main__":
-    print("test")
-    print("args:", sys.argv[1:])
     slug = sys.argv[1]
     subapp_paths = parse_subapp_paths(sys.argv[2])
     api_token = os.getenv("API_TOKEN", None)
@@ -269,11 +267,6 @@ if __name__ == "__main__":
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_title = os.getenv("RELEASE_TITLE", None)
-    print("Server Address:\t\t", server_address)
-    print("Api Token:\t\t", f"{api_token[:4]}****{api_token[-4:]}")
-    print("Slug:\t\t\t", slug)
-    print("Release version:\t", release_version)
-    print("Release title:\t\t", release_title)
     run(
         slug=slug,
         subapp_paths=subapp_paths,
