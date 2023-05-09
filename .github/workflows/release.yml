@@ -5,14 +5,19 @@ on:
     inputs:
       SERVER_ADDRESS:
         required: true
+        type: string
       SLUG:
         required: true
+        type: string
       RELEASE_VERSION:
         required: true
+        type: string
       RELEASE_TITLE:
         required: true
+        type: string
       SUBAPP_PATHS:
         required: true
+        type: string
     secrets:
       SUPERVISELY_API_TOKEN:
         required: true
