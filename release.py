@@ -152,6 +152,7 @@ def release_sly_releases(
                 modal_template=modal_template,
                 slug=slug,
                 created_at=created_at,
+                subapp_path=subapp_path,
             )
 
             results.append(
@@ -204,6 +205,7 @@ def release_github(
             modal_template=modal_template,
             slug=slug,
             created_at=None,
+            subapp_path=subapp_path,
         )
 
         results.append(
