@@ -89,6 +89,7 @@ def print_results(results):
                 f'{str(result["Status code"]).ljust(15)}'
                 f'{result["Message"]}'
             )
+    print()
 
 
 def release_sly_releases(
@@ -126,8 +127,78 @@ def release_sly_releases(
         print("Release title:\t\t", release_name)
 
         for path in subapp_paths:
-            subapp_path = None if path == "__ROOT_APP__" else path
+            app_name = "None"
 
+            try:
+                subapp_path = None if path == "__ROOT_APP__" else path
+
+                appKey = get_appKey(repo, subapp_path, repo_url)
+                config = get_config(subapp_path)
+                readme = get_readme(subapp_path)
+                modal_template = get_modal_template(config)
+
+                app_name = get_app_name(config)
+                if subapp_path is None:
+                    print("Releasing root app")
+                else:
+                    print(f'Releasing subapp at "{path}"')
+                print("App Name:\t\t", app_name)
+
+                response = release(
+                    server_address=server_address,
+                    api_token=api_token,
+                    appKey=appKey,
+                    repo=repo,
+                    config=config,
+                    readme=readme,
+                    release_version=release_version,
+                    release_name=release_name,
+                    modal_template=modal_template,
+                    slug=slug,
+                    created_at=created_at,
+                    subapp_path=subapp_path,
+                )
+
+                results.append(
+                    {
+                        "App name": app_name,
+                        "App path": path,
+                        "Release": f"{release_version} ({release_name})",
+                        "Status code": response.status_code,
+                        "Message": response.json(),
+                    }
+                )
+
+            except Exception as e:
+                results.append(
+                    {
+                        "App name": app_name,
+                        "App path": path,
+                        "Release": f"{release_version} ({release_name})",
+                        "Status code": None,
+                        "Message": str(e),
+                    }
+                )
+
+    if len(results) > 0:
+        print_results(results)
+
+
+def release_github(
+    repo, server_address, api_token, slug, subapp_paths, release_version, release_name
+):
+    print()
+    print("Releasing")
+    print("Release version:\t", release_version)
+    print("Release title:\t\t", release_name)
+
+    repo_url = f"https://github.com/{slug}"
+    results = []
+    for path in subapp_paths:
+        app_name = "None"
+
+        try:
+            subapp_path = None if path == "__ROOT_APP__" else path
             appKey = get_appKey(repo, subapp_path, repo_url)
             config = get_config(subapp_path)
             readme = get_readme(subapp_path)
@@ -151,7 +222,7 @@ def release_sly_releases(
                 release_name=release_name,
                 modal_template=modal_template,
                 slug=slug,
-                created_at=created_at,
+                created_at=None,
                 subapp_path=subapp_path,
             )
 
@@ -165,58 +236,16 @@ def release_sly_releases(
                 }
             )
 
-    if len(results) > 0:
-        print_results(results)
-
-
-def release_github(
-    repo, server_address, api_token, slug, subapp_paths, release_version, release_name
-):
-    print()
-    print("Releasing")
-    print("Release version:\t", release_version)
-    print("Release title:\t\t", release_name)
-
-    repo_url = f"https://github.com/{slug}"
-    results = []
-    for path in subapp_paths:
-        subapp_path = None if path == "__ROOT_APP__" else path
-        appKey = get_appKey(repo, subapp_path, repo_url)
-        config = get_config(subapp_path)
-        readme = get_readme(subapp_path)
-        modal_template = get_modal_template(config)
-
-        app_name = get_app_name(config)
-        if subapp_path is None:
-            print("Releasing root app")
-        else:
-            print(f'Releasing subapp at "{path}"')
-        print("App Name:\t\t", app_name)
-
-        response = release(
-            server_address=server_address,
-            api_token=api_token,
-            appKey=appKey,
-            repo=repo,
-            config=config,
-            readme=readme,
-            release_version=release_version,
-            release_name=release_name,
-            modal_template=modal_template,
-            slug=slug,
-            created_at=None,
-            subapp_path=subapp_path,
-        )
-
-        results.append(
-            {
-                "App name": app_name,
-                "App path": path,
-                "Release": f"{release_version} ({release_name})",
-                "Status code": response.status_code,
-                "Message": response.json(),
-            }
-        )
+        except Exception as e:
+            results.append(
+                {
+                    "App name": app_name,
+                    "App path": path,
+                    "Release": f"{release_version} ({release_name})",
+                    "Status code": None,
+                    "Message": str(e),
+                }
+            )
 
     if len(results) > 0:
         print_results(results)
