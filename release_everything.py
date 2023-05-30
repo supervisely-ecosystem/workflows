@@ -5,10 +5,11 @@ import requests
 from contextlib import contextmanager
 
 import git
-from github import Github
+from github import Github, GitRelease
 import shutil
 
 from release import run
+from supervisely.cli.release.release import get_app_from_instance, get_appKey
 
 
 SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL = "https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md"
@@ -50,7 +51,7 @@ def get_repo_url(app_url: str):
 
 
 def is_release_tag(tag_name):
-    return re.match("v\d+\.\d+\.\d+", tag_name) != None
+    return re.fullmatch("v\d+\.\d+\.\d+", tag_name) != None
 
 
 def sorted_releases(releases):
@@ -72,6 +73,25 @@ def delete_repo():
         shutil.rmtree(repo_dir)
 
 
+def get_instance_releases(server_address, api_token, repo, subapp_path, repo_url):
+    if subapp_path == "__ROOT_APP__":
+        subapp_path = None
+    appKey = get_appKey(repo, subapp_path, repo_url)
+    try:
+        app_info = get_app_from_instance(appKey, api_token, server_address)
+    except PermissionError:
+        return None
+    if app_info is None:
+        return None
+
+    versions = [release["version"] for release in app_info["meta"]["releases"]]
+    return versions
+
+
+def is_published(release: GitRelease.GitRelease):
+    return not (release.prerelease or release.draft)
+
+
 def release_app(app_url):
     app_url = (
         app_url.replace(".www", "")
@@ -85,26 +105,49 @@ def release_app(app_url):
     api_token = os.getenv("API_TOKEN", None)
     server_address = os.getenv("SERVER_ADDRESS", None)
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
-
+    
     delete_repo()
     repo = clone_repo("https://github.com/" + slug)
-    with cd(Path(os.getcwd()).joinpath("repo")):
-        GH = Github(github_access_token)
-        repo_name = repo_url.removeprefix("github.com/")
-        gh_repo = GH.get_repo(repo_name)
-        gh_releases = sorted_releases(
-            [rel for rel in gh_repo.get_releases() if is_release_tag(rel.tag_name)]
-        )
-
+    
+    instance_releases = get_instance_releases(
+        server_address=server_address,
+        api_token=api_token,
+        repo=repo,
+        subapp_path=subapp_path,
+        repo_url = f"https://github.com/{slug}"
+    )
+    if instance_releases is None:
         print()
-        print("App url:", app_url)
-        print("Slug:", slug)
-        print("Subapp path:", subapp_path)
-        print("GH releases:", gh_releases)
+        print("Can't receive instance releases. Will try to release all")
+        instance_releases = []
 
-        for gh_releases in gh_releases:
-            release_version = gh_releases.tag_name
-            release_name = gh_releases.title
+    GH = Github(github_access_token)
+    repo_name = repo_url.removeprefix("github.com/")
+    gh_repo = GH.get_repo(repo_name)
+    gh_releases = sorted_releases(
+        [rel for rel in gh_repo.get_releases() if is_release_tag(rel.tag_name) and is_published(rel)]
+    )
+    print()
+    print("App url:", app_url)
+    print("Slug:", slug)
+    print("Subapp path:", subapp_path)
+    print("GH releases:", [release.tag_name for release in gh_releases])
+    print("Instance releases:", instance_releases)
+
+    if set(instance_releases) == set([release.tag_name for release in gh_releases]):
+        print()
+        print("All releases are released for this App")
+        print()
+        repo.git.clear_cache()
+        return
+
+    with cd(Path(os.getcwd()).joinpath("repo")):
+        for gh_release in [gh_release for gh_release in gh_releases if gh_release.tag_name not in instance_releases]:
+            gh_release: GitRelease.GitRelease
+            release_version = gh_release.tag_name
+            release_name = gh_release.title
+            if release_name is None:
+                release_name = " "
             repo.git.checkout(release_version)
             run(
                 slug=slug,
