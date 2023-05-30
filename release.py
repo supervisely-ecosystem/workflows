@@ -90,6 +90,7 @@ def print_results(results):
                 f'{result["Message"]}'
             )
     print()
+    return success_count != len(results)
 
 
 def release_sly_releases(
@@ -181,7 +182,8 @@ def release_sly_releases(
                 )
 
     if len(results) > 0:
-        print_results(results)
+        return print_results(results)
+    return False
 
 
 def release_github(
@@ -248,7 +250,8 @@ def release_github(
             )
 
     if len(results) > 0:
-        print_results(results)
+        return print_results(results)
+    return False
 
 
 def run(
@@ -269,7 +272,7 @@ def run(
     print("Api Token:\t\t", f"{api_token[:4]}****{api_token[-4:]}")
     print("Slug:\t\t\t", slug)
 
-    release_sly_releases(
+    success = release_sly_releases(
         repo,
         server_address=server_address,
         api_token=api_token,
@@ -278,7 +281,7 @@ def run(
         subapp_paths=subapp_paths,
     )
 
-    release_github(
+    success = success and release_github(
         repo,
         server_address=server_address,
         api_token=api_token,
@@ -287,6 +290,8 @@ def run(
         release_version=release_version,
         release_name=release_title,
     )
+
+    return success
 
 
 if __name__ == "__main__":

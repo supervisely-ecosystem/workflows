@@ -105,16 +105,16 @@ def release_app(app_url):
     api_token = os.getenv("API_TOKEN", None)
     server_address = os.getenv("SERVER_ADDRESS", None)
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
-    
+
     delete_repo()
     repo = clone_repo("https://github.com/" + slug)
-    
+
     instance_releases = get_instance_releases(
         server_address=server_address,
         api_token=api_token,
         repo=repo,
         subapp_path=subapp_path,
-        repo_url = f"https://github.com/{slug}"
+        repo_url=f"https://github.com/{slug}",
     )
     if instance_releases is None:
         print()
@@ -125,7 +125,11 @@ def release_app(app_url):
     repo_name = repo_url.removeprefix("github.com/")
     gh_repo = GH.get_repo(repo_name)
     gh_releases = sorted_releases(
-        [rel for rel in gh_repo.get_releases() if is_release_tag(rel.tag_name) and is_published(rel)]
+        [
+            rel
+            for rel in gh_repo.get_releases()
+            if is_release_tag(rel.tag_name) and is_published(rel)
+        ]
     )
     print()
     print("App url:", app_url)
@@ -141,15 +145,20 @@ def release_app(app_url):
         repo.git.clear_cache()
         return
 
+    success = True
     with cd(Path(os.getcwd()).joinpath("repo")):
-        for gh_release in [gh_release for gh_release in gh_releases if gh_release.tag_name not in instance_releases]:
+        for gh_release in [
+            gh_release
+            for gh_release in gh_releases
+            if gh_release.tag_name not in instance_releases
+        ]:
             gh_release: GitRelease.GitRelease
             release_version = gh_release.tag_name
             release_name = gh_release.title
             if release_name is None:
                 release_name = " "
             repo.git.checkout(release_version)
-            run(
+            success = success and run(
                 slug=slug,
                 subapp_paths=[subapp_path],
                 server_address=server_address,
@@ -160,9 +169,17 @@ def release_app(app_url):
             )
 
     repo.git.clear_cache()
+    return success
 
 
 if __name__ == "__main__":
     app_urls = parse_ecosystem_repository_page(SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL)
-    for app_url in app_urls:
-        release_app(app_url)
+    with open("progress.txt", "a") as f:
+        released_urls = f.readlines()
+        for app_url in app_urls:
+            if app_url in released_urls:
+                print("App already released:", app_url)
+                continue
+            success = release_app(app_url)
+            if success:
+                f.write(app_url + "\n")
