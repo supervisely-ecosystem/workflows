@@ -271,6 +271,7 @@ def run(
     release_title,
     ignore_sly_releases=False,
     add_slug=True,
+    check_previous_releases=True,
 ):
     if len(subapp_paths) == 0:
         subapp_paths = ["__ROOT_APP__"]
@@ -300,28 +301,31 @@ def run(
         else:
             print("Not the first release, skipping sly-releases")
 
-    for path in subapp_paths:
-        app_key = get_appKey(repo, None if path == "__ROOT_APP__" else path, repo_url)
-        app = get_app_from_instance(app_key, api_token, server_address)
-        if app is None:
-            print("App not found, releasing previous releases")
-            for gh_release in gh_releases:
-                if gh_release.tag_name == release_version:
-                    continue
-                repo.git.checkout(gh_release.tag_name)
-                previous_release_success = release_github(
-                    repo,
-                    server_address,
-                    api_token,
-                    [path],
-                    gh_release.tag_name,
-                    gh_release.title,
-                    add_slug,
-                )
-                if not previous_release_success:
-                    print(
-                        f"Error releasing previous release. subapp: {path}, release: {gh_release.tag_name}"
+    if check_previous_releases:
+        for path in subapp_paths:
+            app_key = get_appKey(
+                repo, None if path == "__ROOT_APP__" else path, repo_url
+            )
+            app = get_app_from_instance(app_key, api_token, server_address)
+            if app is None:
+                print("App not found, releasing previous releases")
+                for gh_release in gh_releases:
+                    if gh_release.tag_name == release_version:
+                        continue
+                    repo.git.checkout(gh_release.tag_name)
+                    previous_release_success = release_github(
+                        repo,
+                        server_address,
+                        api_token,
+                        [path],
+                        gh_release.tag_name,
+                        gh_release.title,
+                        add_slug,
                     )
+                    if not previous_release_success:
+                        print(
+                            f"Error releasing previous release. subapp: {path}, release: {gh_release.tag_name}"
+                        )
 
     repo.git.checkout(release_version)
     success = (

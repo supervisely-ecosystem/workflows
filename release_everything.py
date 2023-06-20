@@ -170,6 +170,7 @@ def release_app(app_url, add_slug):
                     release_title=release_name,
                     ignore_sly_releases=True,
                     add_slug=add_slug,
+                    check_previous_releases=False,
                 )
                 and success
             )
