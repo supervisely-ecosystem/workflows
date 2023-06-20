@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import sys
 import requests
 from contextlib import contextmanager
 
@@ -92,7 +93,7 @@ def is_published(release: GitRelease.GitRelease):
     return not (release.prerelease or release.draft)
 
 
-def release_app(app_url):
+def release_app(app_url, add_slug):
     app_url = (
         app_url.replace(".www", "")
         .replace("/tree/master", "")
@@ -158,14 +159,19 @@ def release_app(app_url):
             if release_name is None:
                 release_name = " "
             repo.git.checkout(release_version)
-            success = success and run(
-                slug=slug,
-                subapp_paths=[subapp_path],
-                server_address=server_address,
-                api_token=api_token,
-                github_access_token=github_access_token,
-                release_version=release_version,
-                release_title=release_name,
+            success = (
+                run(
+                    slug=slug,
+                    subapp_paths=[subapp_path],
+                    server_address=server_address,
+                    api_token=api_token,
+                    github_access_token=github_access_token,
+                    release_version=release_version,
+                    release_title=release_name,
+                    ignore_sly_releases=True,
+                    add_slug=add_slug,
+                )
+                and success
             )
 
     repo.git.clear_cache()
@@ -173,13 +179,31 @@ def release_app(app_url):
 
 
 if __name__ == "__main__":
-    app_urls = parse_ecosystem_repository_page(SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL)
+    """
+    Usage:
+    python release_everything.py [add_slug = 1/0] [(optional)apps_repository_gh_url]
+    default apps_repository_gh_url = https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md
+    """
+    try:
+        slug = sys.argv[1]
+    except IndexError:
+        slug = 1
+    try:
+        apps_repository_gh_url = sys.argv[2]
+    except IndexError:
+        apps_repository_gh_url = SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL
+    app_urls = parse_ecosystem_repository_page(apps_repository_gh_url)
+
+    try:
+        with open("progress.txt", "r") as f:
+            released_urls = f.readlines()
+    except FileNotFoundError:
+        released_urls = []
     with open("progress.txt", "a") as f:
-        released_urls = f.readlines()
         for app_url in app_urls:
             if app_url in released_urls:
                 print("App already released:", app_url)
                 continue
-            success = release_app(app_url)
+            success = release_app(app_url, add_slug=slug == 1)
             if success:
                 f.write(app_url + "\n")

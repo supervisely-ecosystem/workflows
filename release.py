@@ -7,7 +7,7 @@ from datetime import datetime
 import git
 from github import Github
 
-from supervisely.cli.release import release, get_appKey
+from supervisely.cli.release import release, get_appKey, get_app_from_instance
 
 
 def parse_subapp_paths(subapps_paths):
@@ -41,11 +41,12 @@ def get_readme(app_path):
 def get_modal_template(config):
     modal_template = ""
     if "modal_template" in config:
-        modal_template_path = Path(config["modal_template"])
-        if not modal_template_path.exists() or not modal_template_path.is_file():
-            raise FileNotFoundError(modal_template_path)
-        with open(modal_template_path, "r") as f:
-            modal_template = f.read()
+        if config["modal_template"] != "":
+            modal_template_path = Path(config["modal_template"])
+            if not modal_template_path.exists() or not modal_template_path.is_file():
+                raise FileNotFoundError(f"FileNotFoundError: {modal_template_path}")
+            with open(modal_template_path, "r") as f:
+                modal_template = f.read()
     return modal_template
 
 
@@ -94,14 +95,13 @@ def print_results(results):
 
 
 def release_sly_releases(
-    repo: git.Repo, server_address, api_token, github_access_token, slug, subapp_paths
+    repo: git.Repo,
+    server_address,
+    api_token,
+    slug,
+    subapp_paths,
+    add_slug,
 ):
-    GH = Github(github_access_token)
-    gh_repo = GH.get_repo(slug)
-    if gh_repo.get_releases().totalCount > 1:
-        print("Not the first release, skipping sly-releases")
-        return
-
     repo_url = f"https://github.com/{slug}"
 
     key = lambda tag: [int(x) for x in tag.name[13:].split(".")]
@@ -155,7 +155,7 @@ def release_sly_releases(
                     release_version=release_version,
                     release_name=release_name,
                     modal_template=modal_template,
-                    slug=slug,
+                    slug=slug if add_slug else None,
                     created_at=created_at,
                     subapp_path=subapp_path,
                 )
@@ -187,7 +187,14 @@ def release_sly_releases(
 
 
 def release_github(
-    repo, server_address, api_token, slug, subapp_paths, release_version, release_name
+    repo,
+    server_address,
+    api_token,
+    slug,
+    subapp_paths,
+    release_version,
+    release_name,
+    add_slug,
 ):
     print()
     print("Releasing")
@@ -223,7 +230,7 @@ def release_github(
                 release_version=release_version,
                 release_name=release_name,
                 modal_template=modal_template,
-                slug=slug,
+                slug=slug if add_slug else None,
                 created_at=None,
                 subapp_path=subapp_path,
             )
@@ -262,6 +269,8 @@ def run(
     github_access_token,
     release_version,
     release_title,
+    ignore_sly_releases=False,
+    add_slug=True,
 ):
     if len(subapp_paths) == 0:
         subapp_paths = ["__ROOT_APP__"]
@@ -272,23 +281,61 @@ def run(
     print("Api Token:\t\t", f"{api_token[:4]}****{api_token[-4:]}")
     print("Slug:\t\t\t", slug)
 
-    success = release_sly_releases(
-        repo,
-        server_address=server_address,
-        api_token=api_token,
-        github_access_token=github_access_token,
-        slug=slug,
-        subapp_paths=subapp_paths,
-    )
+    GH = Github(github_access_token)
+    gh_repo = GH.get_repo(slug)
+    gh_releases = gh_repo.get_releases()
+    repo_url = f"https://github.com/{slug}"
 
-    success = success and release_github(
-        repo,
-        server_address=server_address,
-        api_token=api_token,
-        slug=slug,
-        subapp_paths=subapp_paths,
-        release_version=release_version,
-        release_name=release_title,
+    success = True
+    if not ignore_sly_releases:
+        if gh_releases.totalCount <= 1:
+            success = release_sly_releases(
+                repo,
+                server_address=server_address,
+                api_token=api_token,
+                slug=slug,
+                subapp_paths=subapp_paths,
+                add_slug=add_slug,
+            )
+        else:
+            print("Not the first release, skipping sly-releases")
+
+    for path in subapp_paths:
+        app_key = get_appKey(repo, None if path == "__ROOT_APP__" else path, repo_url)
+        app = get_app_from_instance(app_key, api_token, server_address)
+        if app is None:
+            print("App not found, releasing previous releases")
+            for gh_release in gh_releases:
+                if gh_release.tag_name == release_version:
+                    continue
+                repo.git.checkout(gh_release.tag_name)
+                previous_release_success = release_github(
+                    repo,
+                    server_address,
+                    api_token,
+                    [path],
+                    gh_release.tag_name,
+                    gh_release.title,
+                    add_slug,
+                )
+                if not previous_release_success:
+                    print(
+                        f"Error releasing previous release. subapp: {path}, release: {gh_release.tag_name}"
+                    )
+
+    repo.git.checkout(release_version)
+    success = (
+        release_github(
+            repo,
+            server_address=server_address,
+            api_token=api_token,
+            slug=slug,
+            subapp_paths=subapp_paths,
+            release_version=release_version,
+            release_name=release_title,
+            add_slug=add_slug,
+        )
+        and success
     )
 
     return success
@@ -310,4 +357,5 @@ if __name__ == "__main__":
         github_access_token=github_access_token,
         release_version=release_version,
         release_title=release_title,
+        ignore_sly_releases=True,
     )
