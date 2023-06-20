@@ -10,7 +10,7 @@ from github import Github, GitRelease
 import shutil
 
 from release import run
-from supervisely.cli.release.release import get_app_from_instance, get_appKey
+from supervisely.cli.release import get_app_from_instance, get_appKey
 
 
 SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL = "https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md"
@@ -40,14 +40,22 @@ def get_slug(repo_url):
     return "/".join(repo_url.split("/")[1:])
 
 
+def remove_prefix(input_string, prefix):
+    if prefix and input_string.startswith(prefix):
+        return input_string[len(prefix) :]
+    return input_string
+
+
 def get_subapp_path(app_url: str):
-    app_url = app_url.removeprefix("https://").removeprefix("http://")
+    app_url = remove_prefix(remove_prefix(app_url, "https://"), "http://")
+    # app_url = app_url.removeprefix("https://").removeprefix("http://")
     subapp_path = "/".join(app_url.split("/")[3:])
     return subapp_path if subapp_path else "__ROOT_APP__"
 
 
 def get_repo_url(app_url: str):
-    app_url = app_url.removeprefix("https://").removeprefix("http://")
+    app_url = remove_prefix(remove_prefix(app_url, "https://"), "http://")
+    # app_url = app_url.removeprefix("https://").removeprefix("http://")
     return "/".join(app_url.split("/")[:3])
 
 
@@ -123,7 +131,8 @@ def release_app(app_url, add_slug):
         instance_releases = []
 
     GH = Github(github_access_token)
-    repo_name = repo_url.removeprefix("github.com/")
+    repo_name = remove_prefix(repo_url, "github.com/")
+    # repo_name = repo_url.removeprefix("github.com/")
     gh_repo = GH.get_repo(repo_name)
     gh_releases = sorted_releases(
         [
@@ -186,7 +195,7 @@ if __name__ == "__main__":
     default apps_repository_gh_url = https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md
     """
     try:
-        slug = sys.argv[1]
+        slug = int(sys.argv[1])
     except IndexError:
         slug = 1
     try:
