@@ -1,13 +1,28 @@
+import functools
 import json
 import os
 from pathlib import Path
 import sys
 from datetime import datetime
+import time
 
 import git
 from github import Github
 
 from supervisely.cli.release import release, get_appKey, get_app_from_instance
+
+
+def timeit(func):
+    """Print the runtime of the decorated function"""
+    @functools.wraps(func)
+    def wrapper_timer(*args, **kwargs):
+        start_time = time.perf_counter()    # 1
+        value = func(*args, **kwargs)
+        end_time = time.perf_counter()      # 2
+        run_time = end_time - start_time    # 3
+        print(f"TIME {func.__name__!r} in {run_time:.4f} secs")
+        return value
+    return wrapper_timer
 
 
 def parse_subapp_paths(subapps_paths):
@@ -186,6 +201,7 @@ def release_sly_releases(
     return False
 
 
+@timeit
 def release_github(
     repo,
     server_address,

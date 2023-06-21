@@ -9,7 +9,7 @@ import git
 from github import Github, GitRelease
 import shutil
 
-from release import run
+from release import run, timeit
 from supervisely.cli.release import get_app_from_instance, get_appKey
 
 
@@ -68,6 +68,7 @@ def sorted_releases(releases):
     return sorted(releases, key=key)
 
 
+@timeit
 def clone_repo(slug):
     repo_dir = os.path.join(os.getcwd(), "repo")
     if os.path.exists(repo_dir):
@@ -116,7 +117,10 @@ def release_app(app_url, add_slug):
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
 
     delete_repo()
+    print()
+    print("Cloning repo...")
     repo = clone_repo("https://github.com/" + slug)
+    print("Done cloning repo\n")
 
     instance_releases = get_instance_releases(
         server_address=server_address,
@@ -153,7 +157,7 @@ def release_app(app_url, add_slug):
         print("All releases are released for this App")
         print()
         repo.git.clear_cache()
-        return
+        return True
 
     success = True
     with cd(Path(os.getcwd()).joinpath("repo")):
@@ -203,17 +207,20 @@ if __name__ == "__main__":
     except IndexError:
         apps_repository_gh_url = SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL
     app_urls = parse_ecosystem_repository_page(apps_repository_gh_url)
-
+    app_urls = [
+        "https://github.com/supervisely-ecosystem/PaddleSeg/tree/master/supervisely"
+    ]
     try:
-        with open("progress.txt", "r") as f:
+        with open("logs/progress.txt", "r") as f:
             released_urls = f.readlines()
     except FileNotFoundError:
         released_urls = []
-    with open("progress.txt", "a") as f:
-        for app_url in app_urls:
-            if app_url in released_urls:
-                print("App already released:", app_url)
-                continue
-            success = release_app(app_url, add_slug=slug == 1)
-            if success:
+        open("logs/progress.txt", "x").close()
+    for app_url in app_urls:
+        if app_url in released_urls:
+            print("App already released:", app_url)
+            continue
+        success = release_app(app_url, add_slug=slug == 1)
+        if success:
+            with open("logs/progress.txt", "a") as f:
                 f.write(app_url + "\n")
