@@ -2,12 +2,11 @@ import sys
 
 
 def run(logs_path):
-    lines = []
     with open(logs_path, "r") as f:
-        line = f.readline()
-        if not line.startswith("Processing"):
-            lines.append(line)
-    with open(logs_path, "w") as f:
+        lines = f.readlines()
+    lines = [line for line in lines if not line.startswith("Processing")]
+    print(len(lines))
+    with open("cleared_" + logs_path, "w") as f:
         f.writelines(lines)
 
 

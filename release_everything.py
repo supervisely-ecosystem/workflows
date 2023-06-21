@@ -165,7 +165,7 @@ def release_app(app_url, add_slug):
             gh_release: GitRelease.GitRelease
             release_version = gh_release.tag_name
             release_name = gh_release.title
-            if release_name is None:
+            if release_name is None or release_name == "":
                 release_name = " "
             repo.git.checkout(release_version)
             success = (
