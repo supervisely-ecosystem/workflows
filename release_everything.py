@@ -207,9 +207,6 @@ if __name__ == "__main__":
     except IndexError:
         apps_repository_gh_url = SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL
     app_urls = parse_ecosystem_repository_page(apps_repository_gh_url)
-    app_urls = [
-        "https://github.com/supervisely-ecosystem/PaddleSeg/tree/master/supervisely"
-    ]
     try:
         with open("logs/progress.txt", "r") as f:
             released_urls = f.readlines()
