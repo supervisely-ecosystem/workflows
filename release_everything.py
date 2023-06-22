@@ -160,7 +160,7 @@ def release_app(app_url, add_slug, release_branches):
 
     success = True
     with cd(Path(os.getcwd()).joinpath("repo")):
-        if len(gh_releases) == 0 and release_branches == 1:
+        if len(gh_releases) == 0 and release_branches:
             # if no releases, then release master branch
             print()
             print("No GitHub releases found. Will release master/main branch")
