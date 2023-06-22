@@ -8,7 +8,9 @@ services:
       API_TOKEN: ${API_TOKEN}
       SERVER_ADDRESS: ${SERVER_ADDRESS}
       GITHUB_ACCESS_TOKEN: ${GITHUB_ACCESS_TOKEN}
-    command: bash -c "python -u scripts/release_everything.py 1 'https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md'>> /logs/prod.log"
+      GIT_USERNAME: ${GIT_USERNAME}
+      GIT_PASSWORD: ${GITHUB_ACCESS_TOKEN}
+    command: bash -c "python -u scripts/release_everything.py 1 'https://raw.githubusercontent.com/supervisely-ecosystem/repository/master/README_v2.md' 1 >> /logs/prod.log"
     restart: "on-failure"
     volumes:
       - ./logs:/logs:rw

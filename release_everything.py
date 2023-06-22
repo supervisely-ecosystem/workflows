@@ -26,6 +26,11 @@ def cd(newdir):
         os.chdir(prevdir)
 
 
+def insert_user_and_pass_to_url(url, username, password):
+    username_password = f"{username}:{password}@" if username and password else ""
+    return "".join(["https://", username_password, *url.split("https://")[1:]])
+
+
 def parse_ecosystem_repository_page(url):
     r = requests.get(url)
     content = r.content.decode("utf-8")
@@ -69,12 +74,13 @@ def sorted_releases(releases):
 
 
 @timeit
-def clone_repo(slug):
+def clone_repo(url):
     repo_dir = os.path.join(os.getcwd(), "repo")
-    if os.path.exists(repo_dir):
-        return git.Repo(repo_dir)
-    else:
-        return git.Repo.clone_from(slug, repo_dir)
+    username = os.environ.get("GIT_USERNAME")
+    password = os.environ.get("GIT_PASSWORD")
+    return git.Repo.clone_from(
+        insert_user_and_pass_to_url(url, username, password), repo_dir
+    )
 
 
 def delete_repo():
@@ -102,7 +108,7 @@ def is_published(release: GitRelease.GitRelease):
     return not (release.prerelease or release.draft)
 
 
-def release_app(app_url, add_slug):
+def release_app(app_url, add_slug, release_branches):
     app_url = (
         app_url.replace(".www", "")
         .replace("/tree/master", "")
@@ -152,15 +158,49 @@ def release_app(app_url, add_slug):
     print("GH releases:", [release.tag_name for release in gh_releases])
     print("Instance releases:", instance_releases)
 
-    if set(instance_releases) == set([release.tag_name for release in gh_releases]):
-        print()
-        print("All releases are released for this App")
-        print()
-        repo.git.clear_cache()
-        return True
-
     success = True
     with cd(Path(os.getcwd()).joinpath("repo")):
+        if len(gh_releases) == 0 and release_branches == 1:
+            # if no releases, then release master branch
+            print()
+            print("No GitHub releases found. Will release master/main branch")
+            branch = None
+            for br in repo.branches:
+                if br.name in ["master", "main"]:
+                    br.checkout()
+                    branch = br
+                    break
+            if branch is not None:
+                print("Releasing master/main branch")
+                print()
+                success = (
+                    run(
+                        slug=slug,
+                        subapp_paths=[subapp_path],
+                        server_address=server_address,
+                        api_token=api_token,
+                        github_access_token=github_access_token,
+                        release_version=branch.name,
+                        release_title=branch.name,
+                        ignore_sly_releases=True,
+                        add_slug=add_slug,
+                        check_previous_releases=False,
+                    )
+                    and success
+                )
+            else:
+                print("No master/main branch found. Nothing released")
+                print()
+                repo.git.clear_cache()
+                return False
+
+        if set(instance_releases) == set([release.tag_name for release in gh_releases]):
+            print()
+            print("All releases are released for this App")
+            print()
+            repo.git.clear_cache()
+            return True
+
         for gh_release in [
             gh_release
             for gh_release in gh_releases
@@ -206,13 +246,14 @@ if __name__ == "__main__":
         apps_repository_gh_url = sys.argv[2]
     except IndexError:
         apps_repository_gh_url = SUPERVISELY_ECOSYSTEM_REPOSITORY_V2_URL
+    try:
+        release_branches = int(sys.argv[3])
+    except IndexError:
+        release_branches = 0
     app_urls = parse_ecosystem_repository_page(apps_repository_gh_url)
-    app_urls = [
-        "https://github.com/supervisely-ecosystem/PaddleSeg/tree/master/supervisely"
-    ]
     try:
         with open("logs/progress.txt", "r") as f:
-            released_urls = f.readlines()
+            released_urls = [line[:-1] for line in f.readlines()]
     except FileNotFoundError:
         released_urls = []
         open("logs/progress.txt", "x").close()
@@ -220,7 +261,9 @@ if __name__ == "__main__":
         if app_url in released_urls:
             print("App already released:", app_url)
             continue
-        success = release_app(app_url, add_slug=slug == 1)
+        success = release_app(
+            app_url, add_slug=slug == 1, release_branches=release_branches == 1
+        )
         if success:
             with open("logs/progress.txt", "a") as f:
                 f.write(app_url + "\n")
