@@ -47,7 +47,7 @@ jobs:
           pip install urllib3==1.26.15 requests-toolbelt==0.10.1
       - name: Supervisely Release
         run: |
-          python ./workflow/release.py $SLUG "$SUBAPP_PATHS"
+          python ./workflow/release.py $SLUG "$SUBAPP_PATHS" $IGNORE_SLY_RELEASES $RELEASE_WITH_SLUG $CHECK_PREV_RELEASES
         env:
           SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
           API_TOKEN: "${{ secrets.SUPERVISELY_API_TOKEN }}"
@@ -56,3 +56,6 @@ jobs:
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_TITLE: "${{ inputs.RELEASE_TITLE }}"
           SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"
+          IGNORE_SLY_RELEASES: "${{ inputs.IGNORE_SLY_RELEASES }}"
+          RELEASE_WITH_SLUG: "${{ inputs.RELEASE_WITH_SLUG }}"
+          CHECK_PREV_RELEASES: "${{ inputs.CHECK_PREV_RELEASES }}"

@@ -14,14 +14,16 @@ from supervisely.cli.release import release, get_appKey, get_app_from_instance
 
 def timeit(func):
     """Print the runtime of the decorated function"""
+
     @functools.wraps(func)
     def wrapper_timer(*args, **kwargs):
-        start_time = time.perf_counter()    # 1
+        start_time = time.perf_counter()  # 1
         value = func(*args, **kwargs)
-        end_time = time.perf_counter()      # 2
-        run_time = end_time - start_time    # 3
+        end_time = time.perf_counter()  # 2
+        run_time = end_time - start_time  # 3
         print(f"TIME {func.__name__!r} in {run_time:.4f} secs")
         return value
+
     return wrapper_timer
 
 
@@ -369,6 +371,20 @@ if __name__ == "__main__":
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_title = os.getenv("RELEASE_TITLE", None)
+
+    try:
+        ignore_sly_releases = int(sys.argv[3]) == 1
+    except:
+        ignore_sly_releases = True
+    try:
+        add_slug = int(sys.argv[4]) == 1
+    except:
+        add_slug = True
+    try:
+        check_previous_releases = int(sys.argv[5]) == 1
+    except:
+        check_previous_releases = True
+
     run(
         slug=slug,
         subapp_paths=subapp_paths,
@@ -377,5 +393,7 @@ if __name__ == "__main__":
         github_access_token=github_access_token,
         release_version=release_version,
         release_title=release_title,
-        ignore_sly_releases=True,
+        ignore_sly_releases=ignore_sly_releases,
+        add_slug=add_slug,
+        check_previous_releases=check_previous_releases,
     )
