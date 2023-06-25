@@ -18,6 +18,15 @@ on:
       SUBAPP_PATHS:
         required: true
         type: string
+      IGNORE_SLY_RELEASES:
+        required: true
+        type: string
+      RELEASE_WITH_SLUG:
+        required: true
+        type: string
+      CHECK_PREV_RELEASES:
+        required: true
+        type: string
     secrets:
       SUPERVISELY_API_TOKEN:
         required: true
