@@ -25,7 +25,7 @@ def set_subapp_paths(workflow: str, subapps: list[str]) -> str:
     lines = workflow.split("\n")
     for i, line in enumerate(lines):
         if line.startswith("      SUBAPP_PATHS: "):
-            lines[i] = "      SUBAPP_PATHS: " + ", ".join(subapps)
+            lines[i] = '      SUBAPP_PATHS: "' + ", ".join(subapps) + '"'
     return "\n".join(lines)
 
 
