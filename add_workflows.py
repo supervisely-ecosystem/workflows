@@ -45,6 +45,12 @@ if __name__ == "__main__":
     )
 
     app_urls = parse_ecosystem_repository_page(apps_repository_url)
+    
+    app_urls = [(
+        url.replace(".www", "")
+        .replace("/tree/master", "")
+        .replace("/tree/main", "")
+    ) for url in app_urls]
 
     apps = {}
     for app_url in app_urls:
