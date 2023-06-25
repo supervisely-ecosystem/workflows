@@ -203,7 +203,6 @@ def release_sly_releases(
     return False
 
 
-@timeit
 def release_github(
     repo,
     server_address,
