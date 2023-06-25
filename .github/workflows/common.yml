@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/checkout@v3
         with:
-          repository: my-test-organisaion/workflows
+          repository: supervisely-ecosystem/workflows
           path: workflow
       - name: Set up Python
         uses: actions/setup-python@v4
