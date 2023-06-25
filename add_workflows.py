@@ -44,8 +44,7 @@ if __name__ == "__main__":
         else ".github/workflows/release_dev.yml"
     )
 
-    # app_urls = parse_ecosystem_repository_page(apps_repository_url)
-    app_urls = ["https://github.com/my-test-organisaion/test_sly_app"]
+    app_urls = parse_ecosystem_repository_page(apps_repository_url)
     app_urls = [
         (url.replace(".www", "").replace("/tree/master", "").replace("/tree/main", ""))
         for url in app_urls
