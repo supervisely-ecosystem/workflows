@@ -87,6 +87,8 @@ if __name__ == "__main__":
                     origin = repo.remote("origin")
                 except:
                     origin = repo.create_remote("origin", http_to_ssh(repo_url))
-                    origin.push()
+                origin.push()
+                print("Pushed")
             else:
                 print("No changes to commit")
+        repo.git.clear_cache()

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 import requests
 from contextlib import contextmanager
 
@@ -83,10 +84,16 @@ def clone_repo(url):
     )
 
 
-def delete_repo():
+def delete_repo(attempt=0):
     repo_dir = Path(os.getcwd()).joinpath("repo")
     if repo_dir.exists():
-        shutil.rmtree(repo_dir)
+        try:
+            shutil.rmtree(repo_dir)
+        except:
+            if attempt >= 3:
+                raise
+            time.sleep(1)
+            delete_repo(attempt=attempt + 1)
 
 
 def get_instance_releases(server_address, api_token, repo, subapp_path, repo_url):
