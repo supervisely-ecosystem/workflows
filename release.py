@@ -323,6 +323,7 @@ def run(
             app_key = get_appKey(
                 repo, None if path == "__ROOT_APP__" else path, repo_url
             )
+            print(f"{app_key[:10]}****{app_key[-10:]}")
             app = get_app_from_instance(app_key, api_token, server_address)
             if app is None:
                 print("App not found, releasing previous releases")
@@ -334,6 +335,7 @@ def run(
                         repo=repo,
                         server_address=server_address,
                         api_token=api_token,
+                        slug=slug,
                         subapp_paths=[path],
                         release_version=gh_release.tag_name,
                         release_name=gh_release.title,
