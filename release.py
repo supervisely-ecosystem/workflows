@@ -28,7 +28,7 @@ def timeit(func):
 
 
 def parse_subapp_paths(subapps_paths):
-    return [p.lstrip(" ").rstrip(" ") for p in subapps_paths.split(",")]
+    return [p.strip(" ").strip("/") for p in subapps_paths.split(",")]
 
 
 def get_release_name(tag):
@@ -331,13 +331,13 @@ def run(
                         continue
                     repo.git.checkout(gh_release.tag_name)
                     previous_release_success = release_github(
-                        repo,
-                        server_address,
-                        api_token,
-                        [path],
-                        gh_release.tag_name,
-                        gh_release.title,
-                        add_slug,
+                        repo=repo,
+                        server_address=server_address,
+                        api_token=api_token,
+                        subapp_paths=[path],
+                        release_version=gh_release.tag_name,
+                        release_name=gh_release.title,
+                        add_slug=add_slug,
                     )
                     if not previous_release_success:
                         print(
