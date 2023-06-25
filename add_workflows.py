@@ -44,13 +44,12 @@ if __name__ == "__main__":
         else ".github/workflows/release_dev.yml"
     )
 
-    app_urls = parse_ecosystem_repository_page(apps_repository_url)
-    
-    app_urls = [(
-        url.replace(".www", "")
-        .replace("/tree/master", "")
-        .replace("/tree/main", "")
-    ) for url in app_urls]
+    # app_urls = parse_ecosystem_repository_page(apps_repository_url)
+    app_urls = ["https://github.com/my-test-organisaion/test_sly_app"]
+    app_urls = [
+        (url.replace(".www", "").replace("/tree/master", "").replace("/tree/main", ""))
+        for url in app_urls
+    ]
 
     apps = {}
     for app_url in app_urls:
@@ -73,15 +72,22 @@ if __name__ == "__main__":
         print("Cloning repository:", repo_url)
         repo = git.Repo.clone_from(http_to_ssh("https://" + repo_url), "repo")
         print("Done cloning repository:", repo_url)
+        print("subapps:", subapps)
         with cd(Path(os.getcwd()).joinpath("repo")):
             app_workflow = set_subapp_paths(common_workflow, subapps)
+            Path(common_workflow_path).parent.mkdir(exist_ok=True, parents=True)
             with open(common_workflow_path, "w") as f:
                 f.write(app_workflow)
             index = repo.index
             index.add([common_workflow_path])
-            index.commit(f"Add release workflow for {'prod' if for_prod else 'dev'}")
-            try:
-                origin = repo.remote("origin")
-            except:
-                origin = repo.create_remote("origin", http_to_ssh(repo_url))
-            origin.push()
+            if index.diff("HEAD"):
+                index.commit(
+                    f"Add release workflow for {'prod' if for_prod else 'dev'}"
+                )
+                try:
+                    origin = repo.remote("origin")
+                except:
+                    origin = repo.create_remote("origin", http_to_ssh(repo_url))
+                    origin.push()
+            else:
+                print("No changes to commit")
