@@ -2,12 +2,13 @@ import functools
 import json
 import os
 from pathlib import Path
+import re
 import sys
 from datetime import datetime
 import time
 
 import git
-from github import Github
+from github import Github, GitRelease
 
 from supervisely.cli.release import release, get_appKey, get_app_from_instance
 
@@ -25,6 +26,14 @@ def timeit(func):
         return value
 
     return wrapper_timer
+
+
+def is_release_tag(tag_name):
+    return re.fullmatch("v\d+\.\d+\.\d+", tag_name) != None
+
+
+def is_published(release: GitRelease.GitRelease):
+    return not (release.prerelease or release.draft)
 
 
 def parse_subapp_paths(subapps_paths):
@@ -301,7 +310,11 @@ def run(
 
     GH = Github(github_access_token)
     gh_repo = GH.get_repo(slug)
-    gh_releases = gh_repo.get_releases()
+    gh_releases = [
+        r
+        for r in gh_repo.get_releases()
+        if is_release_tag(r.tag_name) and is_published(r)
+    ]
     repo_url = f"https://github.com/{slug}"
 
     success = True
