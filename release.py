@@ -8,7 +8,7 @@ from datetime import datetime
 import time
 
 import git
-from github import Github, GitRelease
+from github import Github, GitRelease, GithubException
 
 from supervisely.cli.release import release, get_appKey, get_app_from_instance
 
@@ -287,6 +287,22 @@ def release_github(
     return False
 
 
+def get_GitHub_releases(github_access_token):
+    try:
+        GH = Github(github_access_token)
+        gh_repo = GH.get_repo(slug)
+        gh_releases = [
+            r
+            for r in gh_repo.get_releases()
+            if is_release_tag(r.tag_name) and is_published(r)
+        ]
+        return gh_releases
+    except GithubException as e:
+        print("Error connecting to Github")
+        print(e)
+        return None
+
+
 def run(
     slug,
     subapp_paths,
@@ -308,14 +324,9 @@ def run(
     print("Api Token:\t\t", f"{api_token[:4]}****{api_token[-4:]}")
     print("Slug:\t\t\t", slug)
 
-    GH = Github(github_access_token)
-    gh_repo = GH.get_repo(slug)
-    gh_releases = [
-        r
-        for r in gh_repo.get_releases()
-        if is_release_tag(r.tag_name) and is_published(r)
-    ]
-    repo_url = f"https://github.com/{slug}"
+    gh_releases = get_GitHub_releases(github_access_token)
+    if gh_releases is None:
+        return False
 
     success = True
     if not ignore_sly_releases:
@@ -332,6 +343,7 @@ def run(
             print("Not the first release, skipping sly-releases")
 
     if check_previous_releases:
+        repo_url = f"https://github.com/{slug}"
         for path in subapp_paths:
             app_key = get_appKey(
                 repo, None if path == "__ROOT_APP__" else path, repo_url
@@ -398,7 +410,7 @@ if __name__ == "__main__":
     except:
         check_previous_releases = True
 
-    run(
+    success = run(
         slug=slug,
         subapp_paths=subapp_paths,
         server_address=server_address,
@@ -410,3 +422,6 @@ if __name__ == "__main__":
         add_slug=add_slug,
         check_previous_releases=check_previous_releases,
     )
+
+    if not success:
+        sys.exit(1)
