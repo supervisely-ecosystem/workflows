@@ -60,6 +60,14 @@ def parse_subapp_paths(subapps_paths: str) -> List[str]:
     return [p.strip(" ").strip("/") for p in subapps_paths.split(",")]
 
 
+def remove_scheme(server_address):
+    if server_address.startswith("http://"):
+        return server_address[len("http://") :]
+    if server_address.startswith("https://"):
+        return server_address[len("https://") :]
+    return server_address
+
+
 def print_results(results):
     success_count = sum(1 for res in results if res["Status code"] == 200)
     print(f"Total: {len(results)} releases. Success: {success_count}/{len(results)}")
@@ -220,13 +228,6 @@ def run_release(
 
     results = []
     for subapp_path in subapp_paths:
-        if subapp_path is None:
-            print("Releasing root app...".ljust(53), end=" ")
-        else:
-            print(
-                (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
-            )
-
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
             prod_server_address=prod_server_address,
@@ -242,6 +243,23 @@ def run_release(
                 server_address = dev_server_address
                 api_token = private_dev_api_token
                 share = True
+            if subapp_path is None:
+                print(
+                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
+                        53
+                    ),
+                    end=" ",
+                )
+            else:
+                print(
+                    (
+                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                            :50
+                        ]
+                        + "..."
+                    ).ljust(53),
+                    end=" ",
+                )
             results.append(
                 do_release(
                     repo=repo,
@@ -278,6 +296,23 @@ def run_release(
             else:
                 print("[Fail]\n")
         else:
+            if subapp_path is None:
+                print(
+                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
+                        53
+                    ),
+                    end=" ",
+                )
+            else:
+                print(
+                    (
+                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                            :50
+                        ]
+                        + "..."
+                    ).ljust(53),
+                    end=" ",
+                )
             print("[Fail]\n")
             try:
                 config = get_config(subapp_path)
@@ -319,12 +354,6 @@ def run_release_branch(
     created_at = datetime.datetime.utcfromtimestamp(timestamp).isoformat()
     results = []
     for subapp_path in subapp_paths:
-        if subapp_path is None:
-            print("Releasing root app...".ljust(53), end=" ")
-        else:
-            print(
-                (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
-            )
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
             prod_server_address=prod_server_address,
@@ -340,6 +369,23 @@ def run_release_branch(
                 server_address = dev_server_address
                 api_token = private_dev_api_token
                 share = True
+            if subapp_path is None:
+                print(
+                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
+                        53
+                    ),
+                    end=" ",
+                )
+            else:
+                print(
+                    (
+                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                            :50
+                        ]
+                        + "..."
+                    ).ljust(53),
+                    end=" ",
+                )
             results.append(
                 do_release(
                     repo=repo,
@@ -355,8 +401,22 @@ def run_release_branch(
                     share=share,
                 )
             )
+            if results[-1]["Status code"] == 200:
+                print("  [OK]\n")
+            else:
+                print("[Fail]\n")
 
         else:
+            if subapp_path is None:
+                print(f"Releasing root app to {server_address}...".ljust(53), end=" ")
+            else:
+                print(
+                    (
+                        f'Releasing subapp at "{subapp_path}" to {server_address}'[:50]
+                        + "..."
+                    ).ljust(53),
+                    end=" ",
+                )
             print("[Fail]\n")
             try:
                 config = get_config(subapp_path)
@@ -504,7 +564,6 @@ def run(
 
     subapp_paths = [None if p in ["", "__ROOT_APP__"] else p for p in subapp_paths]
 
-    print("Server Address:\t\t", dev_server_address)
     print("Slug:\t\t\t", slug)
     print(
         "Subapp Paths:\t\t", ["__ROOT_APP__" if p is None else p for p in subapp_paths]
