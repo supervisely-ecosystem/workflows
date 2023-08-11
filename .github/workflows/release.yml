@@ -1,5 +1,5 @@
-name: Release to production
-run-name: Release published app to prod. Version "${{ github.event.release.tag_name }}"
+name: Release
+run-name: Release version "${{ github.event.release.tag_name }}"
 on:
   release:
     types: [published]
@@ -12,6 +12,7 @@ jobs:
     uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     secrets:
       SUPERVISELY_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+      SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
       SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
       GH_ACCESS_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
     with:
@@ -19,6 +20,6 @@ jobs:
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       SLUG: "${{ github.repository }}"
       RELEASE_VERSION: "${{ github.event.release.tag_name }}"
-      RELEASE_TITLE: "${{ github.event.release.name }}"
-      RELEASE_TYPE: "to-prod"
+      RELEASE_DESCRIPTION: "${{ github.event.release.name }}"
+      RELEASE_TYPE: "release"
       SUBAPP_PATHS: "__ROOT_APP__, subapp"

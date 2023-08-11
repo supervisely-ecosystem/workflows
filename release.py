@@ -202,18 +202,22 @@ def get_GitHub_releases(
     return gh_releases
 
 
-def release_private(
+def run_release(
+    dev_server_address: str,
+    prod_server_address: str,
+    private_dev_api_token: str,
+    prod_api_token: str,
     repo: git.Repo,
     repo_url: str,
     slug: str,
     subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
     release_version: str,
     release_description: str,
-    prod_server_address: str,
-    prod_api_token: str,
 ):
+    if not is_valid_version(release_version):
+        print("Release version is not valid. Should be in semver format (v1.2.3).")
+        return 1
+
     results = []
     for subapp_path in subapp_paths:
         if subapp_path is None:
@@ -222,94 +226,97 @@ def release_private(
             print(
                 (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
             )
-        if not is_valid_version(release_version):
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": "Release version should be in semver format (v1.2.3).",
-                }
-            )
-            print("[Fail]\n")
-            continue
+
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
             prod_server_address=prod_server_address,
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is not None or is_published:
-            try:
-                config = get_config(subapp_path)
-                app_name = get_app_name(config)
-            except:
-                app_name = "Unknown"
-            message = "App is already published to production. This action only works for apps that are not published to production, releases are prohibited."
+        if err_msg is None:
+            if is_published:
+                server_address = prod_server_address
+                api_token = prod_api_token
+                share = False
+            else:
+                server_address = dev_server_address
+                api_token = private_dev_api_token
+                share = True
             results.append(
-                {
-                    "App name": app_name,
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": message if err_msg is None else err_msg,
-                }
-            )
-            print("[Fail]\n")
-            continue
-
-        timestamp = repo.head.commit.committed_date
-        created_at = datetime.datetime.utcfromtimestamp(timestamp).isoformat()
-        results.append(
-            do_release(
-                repo=repo,
-                server_address=server_address,
-                api_token=api_token,
-                slug=slug,
-                subapp_path=subapp_path,
-                release_version=release_version,
-                release_name=release_description,
-                add_slug=True,
-                repo_url=repo_url,
-                created_at=created_at,
-                share=True,
-            )
-        )
-        if results[-1]["Status code"] == 200:
-            print("  [OK]")
-            try:
-                tag_name = "sly-release-" + release_version
-                created = add_tag(
+                do_release(
                     repo=repo,
-                    tag_name=tag_name,
-                    tag_message=release_description,
-                    commit_sha=repo.git.rev_parse("HEAD", short=True),
+                    server_address=server_address,
+                    api_token=api_token,
+                    slug=slug,
+                    subapp_path=subapp_path,
+                    release_version=release_version,
+                    release_name=release_description,
+                    add_slug=True,
+                    repo_url=repo_url,
+                    created_at=None,
+                    share=share,
                 )
-                if created:
-                    print("Created tag: ", tag_name)
-            except:
-                print(
-                    f'!!! Could not create tag "{tag_name}" Please add this tag manaully to avoid errors in future.'
-                )
-            print()
+            )
+            if results[-1]["Status code"] == 200:
+                print("  [OK]\n")
+                # maybe add sly-release-tag
+                # if not is_published:
+                #     try:
+                #         tag_name = "sly-release-" + release_version
+                #         created = add_tag(
+                #             repo=repo,
+                #             tag_name=tag_name,
+                #             tag_message=release_description,
+                #             commit_sha=repo.git.rev_parse("HEAD", short=True),
+                #         )
+                #         if created:
+                #             print("Created tag: ", tag_name)
+                #     except:
+                #         print(
+                #             f'!!! Could not create tag "{tag_name}" Please add this tag manaully to avoid errors in future.'
+                #         )
+            else:
+                print("[Fail]\n")
         else:
             print("[Fail]\n")
-    return results
+            try:
+                config = get_config(subapp_path)
+                app_name = get_app_name(config)
+            except:
+                app_name = "Unknown"
+            results.append(
+                {
+                    "App name": app_name,
+                    "App path": subapp_path,
+                    "Release": f"{release_version} ({release_description})",
+                    "Status code": None,
+                    "Message": err_msg,
+                }
+            )
+    return 0 if print_results(results) else 1
 
 
-def release_private_branch(
+def run_release_branch(
+    dev_server_address: str,
+    prod_server_address: str,
+    dev_api_token: str,
+    private_dev_api_token: str,
+    prod_api_token: str,
     repo: git.Repo,
     repo_url: str,
     slug: str,
     subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
     release_version: str,
     release_description: str,
-    prod_server_address: str,
-    prod_api_token: str,
 ):
+    if is_valid_version(release_version):
+        print("Branch name is not valid. Should not be in semver format (v1.2.3).")
+        return 1
+    if release_version in ["master", "main"]:
+        print('Branch name should not be "master" or "main".')
+        return 1
+    timestamp = repo.head.commit.committed_date
+    created_at = datetime.datetime.utcfromtimestamp(timestamp).isoformat()
     results = []
     for subapp_path in subapp_paths:
         if subapp_path is None:
@@ -318,87 +325,64 @@ def release_private_branch(
             print(
                 (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
             )
-        if is_valid_version(release_version):
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": "Branch name should not be in semver format on branch release.",
-                }
-            )
-            print("[Fail]\n")
-            continue
-        if release_version in ["master", "main"]:
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": 'Branch name should not be "master" or "main".',
-                }
-            )
-            print("[Fail]\n")
-            continue
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
             prod_server_address=prod_server_address,
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is not None or is_published:
+        if err_msg is None:
+            if is_published:
+                server_address = dev_server_address
+                api_token = dev_api_token
+                share = False
+            else:
+                server_address = dev_server_address
+                api_token = private_dev_api_token
+                share = True
+            results.append(
+                do_release(
+                    repo=repo,
+                    server_address=server_address,
+                    api_token=api_token,
+                    slug=slug,
+                    subapp_path=subapp_path,
+                    release_version=release_version,
+                    release_name=release_description,
+                    add_slug=True,
+                    repo_url=repo_url,
+                    created_at=created_at,
+                    share=share,
+                )
+            )
+
+        else:
+            print("[Fail]\n")
             try:
                 config = get_config(subapp_path)
                 app_name = get_app_name(config)
             except:
                 app_name = "Unknown"
-            message = "App is already published to production. This action only works for apps that are not published to production, releases are prohibited."
             results.append(
                 {
                     "App name": app_name,
                     "App path": subapp_path,
                     "Release": f"{release_version} ({release_description})",
                     "Status code": None,
-                    "Message": message if err_msg is None else err_msg,
+                    "Message": err_msg,
                 }
             )
-            print("[Fail]\n")
-            continue
-
-        results.append(
-            do_release(
-                repo=repo,
-                server_address=server_address,
-                api_token=api_token,
-                slug=slug,
-                subapp_path=subapp_path,
-                release_version=release_version,
-                release_name=release_description,
-                add_slug=True,
-                repo_url=repo_url,
-                created_at=None,
-                share=True,
-            )
-        )
-        if results[-1]["Status code"] == 200:
-            print("  [OK]\n")
-        else:
-            print("[Fail]\n")
-    return results
+    return 0 if print_results(results) else 1
 
 
 def publish(
+    prod_server_address: str,
+    prod_api_token: str,
     repo: git.Repo,
     repo_url: str,
     slug: str,
     subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
     gh_releases: List[GitRelease.GitRelease],
-    prod_server_address: str,
-    prod_api_token: str,
 ):
     """
     Creates a release for every release in the repository.
@@ -451,8 +435,8 @@ def publish(
             results.append(
                 do_release(
                     repo=repo,
-                    server_address=server_address,
-                    api_token=api_token,
+                    server_address=prod_server_address,
+                    api_token=prod_api_token,
                     slug=slug,
                     subapp_path=subapp_path,
                     release_version=release_version,
@@ -473,187 +457,18 @@ def publish(
         # if all of the apps released successfully, consider the whole release successful
         all_success = all_success and success
         print_results(results)
-    return all_success
-
-
-def release_to_prod(
-    repo: git.Repo,
-    repo_url: str,
-    slug: str,
-    subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
-    release_version: str,
-    release_description: str,
-    prod_server_address: str,
-    prod_api_token: str,
-):
-    results = []
-    for subapp_path in subapp_paths:
-        if subapp_path is None:
-            print("Releasing root app...".ljust(53), end=" ")
-        else:
-            print(
-                (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
-            )
-        if not is_valid_version(release_version):
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": "Release version should be in semver format (v1.2.3).",
-                }
-            )
-            print("[Fail]\n")
-            continue
-        app_key = get_appKey(repo, subapp_path, repo_url)
-        is_published, err_msg = check_app_is_published(
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
-            app_key=app_key,
-        )
-        if err_msg is not None or not is_published:
-            try:
-                config = get_config(subapp_path)
-                app_name = get_app_name(config)
-            except:
-                app_name = "Unknown"
-            message = "App is not published to production. This action only works for apps that are published to production, releases are prohibited."
-            results.append(
-                {
-                    "App name": app_name,
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": message if err_msg is None else err_msg,
-                }
-            )
-            print("[Fail]\n")
-            continue
-
-        results.append(
-            do_release(
-                repo=repo,
-                server_address=server_address,
-                api_token=api_token,
-                slug=slug,
-                subapp_path=subapp_path,
-                release_version=release_version,
-                release_name=release_description,
-                add_slug=True,
-                repo_url=repo_url,
-                created_at=None,
-                share=False,
-            )
-        )
-        if results[-1]["Status code"] == 200:
-            print("  [OK]\n")
-        else:
-            print("[Fail]\n")
-    return results
-
-
-def release_branch_to_dev(
-    repo: git.Repo,
-    repo_url: str,
-    slug: str,
-    subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
-    release_version: str,
-    release_description: str,
-    prod_server_address: str,
-    prod_api_token: str,
-):
-    results = []
-    for subapp_path in subapp_paths:
-        if subapp_path is None:
-            print("Releasing root app...".ljust(53), end=" ")
-        else:
-            print(
-                (f'Releasing subapp at "{subapp_path}"'[:50] + "...").ljust(53), end=" "
-            )
-        if is_valid_version(release_version):
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": "Branch name should not be in semver format on branch release.",
-                }
-            )
-            print("[Fail]\n")
-            continue
-        if release_version in ["master", "main"]:
-            results.append(
-                {
-                    "App name": "Unknown",
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": 'Branch name should not be "master" or "main".',
-                }
-            )
-            print("[Fail]\n")
-            continue
-        app_key = get_appKey(repo, subapp_path, repo_url)
-        is_published, err_msg = check_app_is_published(
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
-            app_key=app_key,
-        )
-        if err_msg is not None or not is_published:
-            try:
-                config = get_config(subapp_path)
-                app_name = get_app_name(config)
-            except:
-                app_name = "Unknown"
-            message = "App is not published to production. This action only works for apps that are published to production, releases are prohibited."
-            results.append(
-                {
-                    "App name": app_name,
-                    "App path": subapp_path,
-                    "Release": f"{release_version} ({release_description})",
-                    "Status code": None,
-                    "Message": message if err_msg is None else err_msg,
-                }
-            )
-            print("[Fail]\n")
-            continue
-
-        results.append(
-            do_release(
-                repo=repo,
-                server_address=server_address,
-                api_token=api_token,
-                slug=slug,
-                subapp_path=subapp_path,
-                release_version=release_version,
-                release_name=release_description,
-                add_slug=True,
-                repo_url=repo_url,
-                created_at=None,
-                share=False,
-            )
-        )
-        if results[-1]["Status code"] == 200:
-            print("  [OK]\n")
-        else:
-            print("[Fail]\n")
-    return results
+    return 0 if all_success else 1
 
 
 def run(
+    dev_server_address: str,
+    prod_server_address: str,
+    dev_api_token: str,
+    private_dev_api_token: str,
+    prod_api_token: str,
     slug: str,
     subapp_paths: List[str],
-    api_token: str,
-    server_address: str,
     github_access_token: str,
-    prod_api_token: str,
-    prod_server_address: str,
     release_version: str,
     release_description: str,
     release_type: Literal[
@@ -675,31 +490,21 @@ def run(
                       Branch name for branch releases.
                       Example: "v1.0.0" or "test-branch"
     release_description - Description of the release.
-    release_type - Type of the release. One of "private", "private-branch", "publish", "to-prod", "branch-to-dev"
+    release_type - Type of the release. One of "release", "release-branch", "publish"
     """
-    PRIVATE = "private"
-    PRIVATE_BRANCH = "private-branch"
-    PUBLISH = "publish"
-    TO_PROD = "to-prod"
-    BRANCH_TO_DEV = "branch-to-dev"
 
-    release_types = [PRIVATE, PRIVATE_BRANCH, PUBLISH, TO_PROD, BRANCH_TO_DEV]
+    RELEASE = "release"
+    RELEASE_BRANCH = "release-branch"
+    PUBLISH = "publish"
+
+    release_types = [RELEASE, RELEASE_BRANCH, PUBLISH]
     if release_type not in release_types:
         print(f"Unknown release type. Should be one of {release_types}")
         return 1
 
-    release_type_message = {
-        PRIVATE: "Releasing private app to dev",
-        PRIVATE_BRANCH: "Releasing private app branch to dev",
-        PUBLISH: "Publish release",
-        TO_PROD: "Releasing app to prod",
-        BRANCH_TO_DEV: "Releasing app branch to dev",
-    }
     subapp_paths = [None if p in ["", "__ROOT_APP__"] else p for p in subapp_paths]
 
-    print(release_type_message[release_type])
-    print("Server Address:\t\t", server_address)
-    print("Api Token:\t\t", hided(api_token))
+    print("Server Address:\t\t", dev_server_address)
     print("Slug:\t\t\t", slug)
     print(
         "Subapp Paths:\t\t", ["__ROOT_APP__" if p is None else p for p in subapp_paths]
@@ -715,35 +520,34 @@ def run(
     repo = git.Repo()
     repo_url = f"https://github.com/{slug}"
 
-    if release_type == PRIVATE:
-        results = release_private(
+    if release_type == RELEASE:
+        return run_release(
+            dev_server_address=dev_server_address,
+            prod_server_address=prod_server_address,
+            private_dev_api_token=private_dev_api_token,
+            prod_api_token=prod_api_token,
             repo=repo,
             repo_url=repo_url,
             slug=slug,
             subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
             release_version=release_version,
             release_description=release_description,
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
         )
-        return 0 if print_results(results) else 1
 
-    if release_type == PRIVATE_BRANCH:
-        results = release_private_branch(
+    if release_type == RELEASE_BRANCH:
+        return run_release_branch(
+            dev_server_address=dev_server_address,
+            prod_server_address=prod_server_address,
+            dev_api_token=dev_api_token,
+            private_dev_api_token=private_dev_api_token,
+            prod_api_token=prod_api_token,
             repo=repo,
             repo_url=repo_url,
             slug=slug,
             subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
             release_version=release_version,
             release_description=release_description,
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
         )
-        return 0 if print_results(results) else 1
 
     if release_type == PUBLISH:
         try:
@@ -753,74 +557,43 @@ def run(
         except GithubException as e:
             print("Error connecting to Github. Could not publish app.")
             return 1
-        success = publish(
+        return publish(
+            prod_server_address=prod_server_address,
+            prod_api_token=prod_api_token,
             repo=repo,
             repo_url=repo_url,
             slug=slug,
             subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
             gh_releases=gh_releases,
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
         )
-        return 0 if success else 1
-
-    if release_type == TO_PROD:
-        results = release_to_prod(
-            repo=repo,
-            repo_url=repo_url,
-            slug=slug,
-            subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
-            release_version=release_version,
-            release_description=release_description,
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
-        )
-        return 0 if print_results(results) else 1
-
-    if release_type == BRANCH_TO_DEV:
-        results = release_branch_to_dev(
-            repo=repo,
-            repo_url=repo_url,
-            slug=slug,
-            subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
-            release_version=release_version,
-            release_description=release_description,
-            prod_server_address=prod_server_address,
-            prod_api_token=prod_api_token,
-        )
-        return 0 if print_results(results) else 1
 
     return 1
 
 
 def main():
+    dev_server_address = os.getenv("DEV_SERVER_ADDRESS", None)
+    prod_server_address = os.getenv("PROD_SERVER_ADDRESS", None)
+    dev_api_token = os.getenv("DEV_API_TOKEN", None)
+    private_dev_api_token = os.getenv("PRIVATE_DEV_API_TOKEN", None)
+    prod_api_token = os.getenv("PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
-    api_token = os.getenv("API_TOKEN", None)
-    server_address = os.getenv("SERVER_ADDRESS", None)
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
-    prod_server_address = os.getenv("PROD_SERVER_ADDRESS", None)
-    prod_api_token = os.getenv("PROD_API_TOKEN", None)
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
     sys.exit(
         run(
+            dev_server_address=dev_server_address,
+            prod_server_address=prod_server_address,
+            dev_api_token=dev_api_token,
+            private_dev_api_token=private_dev_api_token,
+            prod_api_token=prod_api_token,
             slug=slug,
             subapp_paths=subapp_paths,
-            api_token=api_token,
-            server_address=server_address,
             github_access_token=github_access_token,
-            prod_api_token=prod_api_token,
-            prod_server_address=prod_server_address,
             release_version=release_version,
             release_description=release_description,
             release_type=release_type,

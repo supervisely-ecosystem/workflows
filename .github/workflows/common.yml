@@ -6,6 +6,9 @@ on:
       SUPERVISELY_SERVER_ADDRESS:
         required: true
         type: string
+      SUPERVISELY_PROD_SERVER_ADDRESS:
+        required: true
+        type: string
       SLUG:
         required: true
         type: string
@@ -18,19 +21,19 @@ on:
       SUBAPP_PATHS:
         required: true
         type: string
-      SUPERVISELY_PROD_SERVER_ADDRESS:
-        required: true
-        type: string
       RELEASE_TYPE:
         required: true
         type: string
     secrets:
-      SUPERVISELY_API_TOKEN:
+      SUPERVISELY_DEV_API_TOKEN:
         required: true
-      GH_ACCESS_TOKEN:
+      SUPERVISELY_PRIVATE_DEV_API_TOKEN:
         required: true
       SUPERVISELY_PROD_API_TOKEN:
         required: true
+      GH_ACCESS_TOKEN:
+        required: true
+      
 
 jobs:
   Supervisely-Release:
@@ -57,14 +60,14 @@ jobs:
         run: |
           python ./workflow/release.py
         env:
-          SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
-          API_TOKEN: "${{ secrets.SUPERVISELY_API_TOKEN }}"
+          DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
+          PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+          DEV_API_TOKEN: "${{ secrets.SUPERVISELY_API_TOKEN }}"
+          PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
+          PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
           GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
-          PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
           RELEASE_TYPE: "${{ inputs.RELEASE_TYPE }}"
           SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"
-
