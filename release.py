@@ -107,6 +107,7 @@ def do_release(
     created_at,
     share,
 ):
+    app_name = "Unknown"
     try:
         appKey = get_appKey(repo, subapp_path, repo_url)
         config = get_config(subapp_path)
