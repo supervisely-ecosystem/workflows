@@ -299,7 +299,7 @@ def run_release(
         else:
             if subapp_path is None:
                 print(
-                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
+                    "Releasing root app Failed...".ljust(
                         53
                     ),
                     end=" ",
@@ -307,7 +307,7 @@ def run_release(
             else:
                 print(
                     (
-                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                        f'Releasing subapp at "{subapp_path}" Failed'[
                             :50
                         ]
                         + "..."
