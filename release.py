@@ -619,7 +619,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         # validate version
         for min_inst_ver, min_sdk_ver in versions_json.items():
             if compare_semver(instance_version, min_inst_ver) >= 0 and compare_semver(sdk_version, min_sdk_ver) < 0:
-                print(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
+                print(f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}")
                 print(f"ERROR: for versions from {min_inst_ver} and higher SDK version should be {min_sdk_ver} or higher")
                 raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
         print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
