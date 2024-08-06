@@ -46,7 +46,6 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-          ref: test # TODO: remove
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
