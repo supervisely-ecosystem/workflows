@@ -600,7 +600,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         if "docker_image" not in config:
             print(f"ERROR: docker_image key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#docker_image")
             raise RuntimeError(f"docker_image key not found in {subapp_name}")
-        docker_image = config["docker_image"]
+        docker_image = config["docker_image"].replace("supervisely/", "")
         print(f"INFO: docker_image: {docker_image}")
         image_name, image_version = docker_image.split(":")
         if image_name in standard_docker_images:
