@@ -592,10 +592,10 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
-        if "instance_version" not in config:
+        if "instance_version" not in config and "min_instance_version" not in config:
             print(f"ERROR: instance_version key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#instance_version")
             raise RuntimeError(f"instance_version key not found in {subapp_name}")
-        instance_version = config["instance_version"]
+        instance_version = config.get("instance_version", config.get("min_instance_version"))
         print(f"INFO: instance_version: {instance_version}")
         if "docker_image" not in config:
             print(f"ERROR: docker_image key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#docker_image")
