@@ -610,6 +610,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         else:
             print(f"INFO: Docker image {image_name} is not in the list of standard docker images.")
             print("INFO: Will read release description to find the appropriate SDK version.")
+            print("INFO: Release description:", release_description)
             if release_description.find("python_sdk_version") == -1:
                 print("ERROR: python_sdk_version not found in the release description.")
                 print("ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10")
