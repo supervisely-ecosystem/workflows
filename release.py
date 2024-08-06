@@ -559,7 +559,14 @@ def fetch_docker_images(github_access_token):
     return images
 
 
-def validate_instance_version(github_access_token: str, subapp_paths: List[str], release_description: str):
+def fetch_release_description(github_access_token, slug, release_version):
+    GH = Github(github_access_token)
+    gh_repo = GH.get_repo(slug)
+    gh_release = gh_repo.get_release(release_version)
+    return gh_release.body
+
+
+def validate_instance_version(github_access_token: str, subapp_paths: List[str], slug:str, release_version: str):
     # check requirements.txt
     for subapp_path in subapp_paths:
         if subapp_path is None:
@@ -568,6 +575,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             print(f"ERROR: requirements.txt file found in subapp {subapp_path if subapp_path else 'root'}")
             print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
             raise RuntimeError(f"requirements.txt file found in subapp: {subapp_path if subapp_path else 'root'}")
+    release_description = fetch_release_description(github_access_token, slug, release_version)
     # fetch versions.json
     try:
         versions_json = fetch_versions_json(github_access_token)
@@ -688,9 +696,9 @@ def run(
 
     if need_validate_instance_version(release_type):
         try:
-            validate_instance_version(github_access_token, subapp_paths, release_description)
+            validate_instance_version(github_access_token, subapp_paths, slug, release_version)
         except Exception as e:
-            print(f"Error validating instance version")
+            print("Error validating instance version")
             return 1
 
     if release_type == ReleaseType.RELEASE:
