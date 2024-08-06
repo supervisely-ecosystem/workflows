@@ -8,10 +8,29 @@ import git
 import datetime
 import json
 from pathlib import Path
-from github import Github, GitRelease, GithubException
+
+import requests
+from github import Github, GitRelease, GithubException, ContentFile
 
 from supervisely.cli.release.run import hided
 from supervisely.cli.release.release import release, get_appKey, get_app_from_instance
+
+
+class ReleaseType:
+    RELEASE = "release"
+    RELEASE_BRANCH = "release-branch"
+    PUBLISH = "publish"
+
+
+def compare_semver(version1: str, version2: str):
+    def version_tuple(version: str):
+        return tuple(map(int, version.lstrip("v").split(".")))
+
+    if version_tuple(version1) > version_tuple(version2):
+        return 1
+    if version_tuple(version1) < version_tuple(version2):
+        return -1
+    return 0
 
 
 def is_valid_version(version: str):
@@ -521,6 +540,96 @@ def publish(
     return 0 if all_success else 1
 
 
+def fetch_versions_json(github_access_token):
+    GH = Github(github_access_token)
+    repo = GH.get_repo("supervisely/supervisely")
+    versions_json = repo.get_contents("versions.json", ref="vercheck") # TODO: change to master
+    return json.loads(versions_json.decoded_content.decode("utf-8"))
+
+
+def fetch_docker_images(github_access_token):
+    GH = Github(github_access_token)
+    repo = GH.get_repo("supervisely/supervisely")
+    docker_images_dirs = repo.get_contents("docker_images")
+    images = []
+    for item in docker_images_dirs:
+        item: ContentFile.ContentFile
+        if item.type == "dir":
+            images.append(item.name)
+    return images
+
+
+def validate_instance_version(github_access_token: str, subapp_paths: List[str], release_description: str):
+    # check requirements.txt
+    for subapp_path in subapp_paths:
+        if subapp_path is None:
+            subapp_path = ""
+        if Path(subapp_path, "requirements.txt").exists():
+            print(f"ERROR: requirements.txt file found in subapp {subapp_path if subapp_path else 'root'}")
+            print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
+            raise RuntimeError(f"requirements.txt file found in subapp: {subapp_path if subapp_path else 'root'}")
+    # fetch versions.json
+    try:
+        versions_json = fetch_versions_json(github_access_token)
+        print("INFO: Versions info:")
+        print(json.dumps(versions_json, indent=4))
+    except Exception:
+        print("ERROR: versions.json not found in supervisely/supervisely repository.")
+        raise
+    # fetch docker_images
+    try:
+        standard_docker_images = fetch_docker_images(github_access_token)
+        standard_docker_images = ["base-py-sdk", *standard_docker_images]
+        print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
+    except Exception:
+        print("ERROR: docker_images not found in supervisely/supervisely repository.")
+        raise
+    for subapp_path in subapp_paths:
+        subapp_name = subapp_path if subapp_path else "root"
+        print("INFO: Validating subapp:", subapp_name)
+        try:
+            config = get_config(subapp_path)
+        except Exception:
+            print(f"ERROR: Config file not found in subapp {subapp_name}")
+            raise
+        if "instance_version" not in config:
+            print(f"ERROR: instance_version key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#instance_version")
+            raise RuntimeError(f"instance_version key not found in {subapp_name}")
+        instance_version = config["instance_version"]
+        print(f"INFO: instance_version: {instance_version}")
+        if "docker_image" not in config:
+            print(f"ERROR: docker_image key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#docker_image")
+            raise RuntimeError(f"docker_image key not found in {subapp_name}")
+        docker_image = config["docker_image"].replace("supervisely/", "")
+        print(f"INFO: docker_image: {docker_image}")
+        image_name, image_version = docker_image.split(":")
+        if image_name in standard_docker_images:
+            print(f"INFO: Docker image {image_name} is in the list of standard docker images.")
+            print(f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK.")
+            sdk_version = image_version
+        else:
+            print(f"INFO: Docker image {image_name} is not in the list of standard docker images.")
+            print("INFO: Will read release description to find the appropriate SDK version.")
+            if release_description.find("python_sdk_version") == -1:
+                print("ERROR: python_sdk_version not found in the release description.")
+                print("ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10")
+                raise RuntimeError("python_sdk_version not found in the release description.")
+            sdk_version = release_description.split("python_sdk_version:")[1].strip(" \n")
+        print(f"INFO: SDK version to check: {sdk_version}")
+        # validate version
+        for min_inst_ver, min_sdk_ver in versions_json.items():
+            if compare_semver(instance_version, min_inst_ver) >= 0 and compare_semver(sdk_version, min_sdk_ver) < 0:
+                print(f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}")
+                print(f"ERROR: for versions from {min_inst_ver} and higher SDK version should be {min_sdk_ver} or higher")
+                raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
+        print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
+
+def need_validate_instance_version(release_type: str):
+    if release_type == ReleaseType.RELEASE:
+        return True
+    return False
+
+
 def run(
     dev_server_address: str,
     prod_server_address: str,
@@ -554,11 +663,7 @@ def run(
     release_type - Type of the release. One of "release", "release-branch", "publish"
     """
 
-    RELEASE = "release"
-    RELEASE_BRANCH = "release-branch"
-    PUBLISH = "publish"
-
-    release_types = [RELEASE, RELEASE_BRANCH, PUBLISH]
+    release_types = [ReleaseType.RELEASE, ReleaseType.RELEASE_BRANCH, ReleaseType.PUBLISH]
     if release_type not in release_types:
         print(f"Unknown release type. Should be one of {release_types}")
         return 1
@@ -580,7 +685,14 @@ def run(
     repo = git.Repo()
     repo_url = f"https://github.com/{slug}"
 
-    if release_type == RELEASE:
+    if need_validate_instance_version(release_type):
+        try:
+            validate_instance_version(github_access_token, subapp_paths, release_description)
+        except Exception as e:
+            print(f"Error validating instance version")
+            return 1
+
+    if release_type == ReleaseType.RELEASE:
         return run_release(
             dev_server_address=dev_server_address,
             prod_server_address=prod_server_address,
@@ -594,7 +706,7 @@ def run(
             release_description=release_description,
         )
 
-    if release_type == RELEASE_BRANCH:
+    if release_type == ReleaseType.RELEASE_BRANCH:
         return run_release_branch(
             dev_server_address=dev_server_address,
             prod_server_address=prod_server_address,
@@ -609,7 +721,7 @@ def run(
             release_description=release_description,
         )
 
-    if release_type == PUBLISH:
+    if release_type == ReleaseType.PUBLISH:
         try:
             gh_releases = get_GitHub_releases(
                 github_access_token, slug, include_sly_releases
