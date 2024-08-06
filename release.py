@@ -622,7 +622,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
                 print(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
                 print(f"ERROR: for versions from {min_inst_ver} and higher SDK version should be {min_sdk_ver} or higher")
                 raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
-
+        print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
 
 def need_validate_instance_version(release_type: str):
     if release_type == ReleaseType.RELEASE:
