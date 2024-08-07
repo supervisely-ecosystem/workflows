@@ -556,7 +556,7 @@ def fetch_docker_images(github_access_token):
     for item in docker_images_dirs:
         item: ContentFile.ContentFile
         if item.type == "dir":
-            images.append(item.name)
+            images.append(item.name.replace("_", "-"))
     return images
 
 
