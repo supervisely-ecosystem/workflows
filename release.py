@@ -1,7 +1,7 @@
 import re
 import subprocess
 import traceback
-from typing import List, Literal
+from typing import Dict, List, Literal
 import os
 import sys
 import git
@@ -22,10 +22,11 @@ class ReleaseType:
     PUBLISH = "publish"
 
 
-def compare_semver(version1: str, version2: str):
-    def version_tuple(version: str):
-        return tuple(map(int, version.lstrip("v").split(".")))
+def version_tuple(version: str):
+    return tuple(map(int, version.lstrip("v").split(".")))
 
+
+def compare_semver(version1: str, version2: str):
     if version_tuple(version1) > version_tuple(version2):
         return 1
     if version_tuple(version1) < version_tuple(version2):
@@ -566,6 +567,26 @@ def fetch_release_description(github_access_token, slug, release_version):
     return gh_release.body
 
 
+def get_sdk_versions_range(instance_version: str, versions_json: Dict):
+    sorted_versions = sorted(versions_json.items(), key=lambda x: version_tuple(x[0]))
+    min_sdk = None
+    max_sdk = None
+    for inst_ver, sdk_ver in sorted_versions:
+        if compare_semver(instance_version, inst_ver) >= 0:
+            min_sdk = sdk_ver
+        if compare_semver(instance_version, inst_ver) < 0:
+            max_sdk = sdk_ver
+            break
+    return min_sdk, max_sdk
+
+
+def is_valid_versions(instace_version: str, sdk_version: str, versions_json: Dict):
+    min_sdk, max_sdk = get_sdk_versions_range(instace_version, versions_json)
+    if min_sdk is None:
+        return compare_semver(sdk_version, max_sdk) < 0
+    return compare_semver(sdk_version, min_sdk) >= 0 and (max_sdk is None or compare_semver(sdk_version, max_sdk) < 0)
+
+
 def validate_instance_version(github_access_token: str, subapp_paths: List[str], slug:str, release_version: str):
     # check requirements.txt
     for subapp_path in subapp_paths:
@@ -626,11 +647,11 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             sdk_version = release_description.split("python_sdk_version:")[1].strip(" \n")
         print(f"INFO: SDK version to check: {sdk_version}")
         # validate version
-        for min_inst_ver, min_sdk_ver in versions_json.items():
-            if compare_semver(instance_version, min_inst_ver) >= 0 and compare_semver(sdk_version, min_sdk_ver) < 0:
-                print(f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}")
-                print(f"ERROR: for versions from {min_inst_ver} and higher SDK version should be {min_sdk_ver} or higher")
-                raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
+        if not is_valid_versions(instance_version, sdk_version, versions_json):
+            min_sdk_ver, max_sdk_ver = get_sdk_versions_range(instance_version, versions_json)
+            print(f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}")
+            print(f"ERROR: for version {instance_version} SDK version should be in range [{min_sdk_ver} : {max_sdk_ver})")
+            raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
         print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
 
 def need_validate_instance_version(release_type: str):
