@@ -1,0 +1,109 @@
+name: Build and Push Docker Image 
+run-name: Docker Image for ${{ github.repository }}
+on: 
+  workflow_call:
+    inputs:
+      tag_version:
+        description: 'Docker Image Tag (without "v")'     
+        required: true
+        type: string
+        default: ''
+      dockerfile_path:
+        description: 'Path to Dockerfile (optional)'
+        required: true
+        type: string
+        default: 'docker/Dockerfile'
+      image_name:
+        description: 'Docker Image Name (optional)'
+        required: false
+        type: string
+        default: ''
+      sdk_version:
+        description: 'Supervisely SDK version (optional) - only needed if SDK is installed from branch'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Info
+        run: |
+          IMAGE_NAME=${{ github.event.inputs.image_name }}
+          if [ -z "$IMAGE_NAME" ]; then
+            IMAGE_NAME=${GITHUB_REPOSITORY#*/}
+          fi
+          if [[ "$IMAGE_NAME" != supervisely/* ]]; then
+            IMAGE_NAME="supervisely/$IMAGE_NAME"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "Image name: $IMAGE_NAME"
+          echo "Tag version: ${{ github.event.inputs.tag_version }}"
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
+          
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+        with:
+          repository: supervisely-ecosystem/workflows
+          path: workflow
+
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          load: true
+          file: ${{ github.event.inputs.dockerfile_path }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.event.inputs.tag_version }}
+    
+      - name: Extract SDK version
+        run: |
+          if [ -n "${{ github.event.inputs.sdk_version }}" ]; then
+            echo "${{ github.event.inputs.sdk_version }}" > sdk_version.txt
+          else
+            docker run --rm $IMAGE_NAME:${{ github.event.inputs.tag_version }} python -c "import supervisely as sly; print(sly.__version__)" > sdk_version.txt
+          fi
+        
+      - name: Add SDK version label
+        run: |
+          SDK_VERSION=$(cat sdk_version.txt)
+          printf "FROM %s:${{ github.event.inputs.tag_version }}\nLABEL sdk-version=\"%s\"\n" "$IMAGE_NAME" "$SDK_VERSION" > Dockerfile.label
+          docker build -f Dockerfile.label -t $IMAGE_NAME:${{ github.event.inputs.tag_version }} .
+    
+      - name: Inspect Image
+        run: |
+          docker inspect $IMAGE_NAME:${{ github.event.inputs.tag_version }}
+
+      - name: Push
+        run: |
+          docker push $IMAGE_NAME:${{ github.event.inputs.tag_version }}
