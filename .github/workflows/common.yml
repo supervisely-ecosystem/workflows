@@ -52,6 +52,7 @@ jobs:
           python-version: 3.8
       - name: Install dependencies
         run: |
+          sudo apt-get install skopeo
           python -m pip install --upgrade pip
           pip install -r ./workflow/requirements.txt
           pip uninstall -y urllib3 requests-toolbelt

@@ -638,13 +638,26 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             sdk_version = image_version
         else:
             print(f"INFO: Docker image {image_name} is not in the list of standard docker images.")
-            print("INFO: Will read release description to find the appropriate SDK version.")
-            print("INFO: Release description:", release_description)
-            if release_description.find("python_sdk_version") == -1:
-                print("ERROR: python_sdk_version not found in the release description.")
-                print("ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10")
-                raise RuntimeError("python_sdk_version not found in the release description.")
-            sdk_version = release_description.split("python_sdk_version:")[1].strip(" \n")
+            try:
+                print("INFO: Looking for SDK version in docker image labels")
+                skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/{image_name}:{image_version}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if skopeo_result.returncode != 0:
+                    raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
+                inspect_data = json.loads(skopeo_result.stdout.decode("utf-8").strip())
+                labels = inspect_data["Labels"]
+                if "python_sdk_version" not in labels:
+                    raise RuntimeError("python_sdk_version not found in the docker image labels.")
+                sdk_version = labels["python_sdk_version"]
+            except Exception as e:
+                print(f"INFO: python_sdk_version not found in the docker image labels. Error: {e}")
+                print("INFO: When using custom docker images, you must provide the python_sdk_version in the docker image labels, example: python_sdk_version=6.73.10")
+                print("INFO: Will read release description to find the appropriate SDK version.")
+                print("INFO: Release description:", release_description)
+                if release_description.find("python_sdk_version") == -1:
+                    print("ERROR: python_sdk_version not found in the release description.")
+                    print("ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10")
+                    raise RuntimeError("python_sdk_version not found in the release description.")
+                sdk_version = release_description.split("python_sdk_version:")[1].strip(" \n")
         print(f"INFO: SDK version to check: {sdk_version}")
         # validate version
         if not is_valid_versions(instance_version, sdk_version, versions_json):
