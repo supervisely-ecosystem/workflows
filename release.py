@@ -544,7 +544,7 @@ def publish(
 def fetch_versions_json(github_access_token):
     GH = Github(github_access_token)
     repo = GH.get_repo("supervisely/supervisely")
-    versions_json = repo.get_contents("versions.json", ref="vercheck") # TODO: change to master
+    versions_json = repo.get_contents("versions.json", ref="master")
     return json.loads(versions_json.decoded_content.decode("utf-8"))
 
 
