@@ -640,7 +640,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             print(f"INFO: Docker image {image_name} is not in the list of standard docker images.")
             try:
                 print("INFO: Looking for SDK version in docker image labels")
-                skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/{image_name}:{image_version}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{image_name}:{image_version}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 if skopeo_result.returncode != 0:
                     raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
                 inspect_data = json.loads(skopeo_result.stdout.decode("utf-8").strip())
