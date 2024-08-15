@@ -668,10 +668,10 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
 
 def need_validate_instance_version(release_type: str, github_access_token: str, slug: str, release_version: str):
-    release_description = fetch_release_description(github_access_token, slug, release_version)
-    if release_description.find("skip_sdk_version_validation") != -1:
-        return False
     if release_type == ReleaseType.RELEASE:
+        release_description = fetch_release_description(github_access_token, slug, release_version)
+        if release_description.find("skip_sdk_version_validation") != -1:
+            return False
         return True
     return False
 
