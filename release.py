@@ -667,7 +667,10 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
         print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
 
-def need_validate_instance_version(release_type: str):
+def need_validate_instance_version(release_type: str, github_access_token: str, slug: str, release_version: str):
+    release_description = fetch_release_description(github_access_token, slug, release_version)
+    if release_description.find("skip_sdk_version_validation") != -1:
+        return False
     if release_type == ReleaseType.RELEASE:
         return True
     return False
@@ -728,7 +731,7 @@ def run(
     repo = git.Repo()
     repo_url = f"https://github.com/{slug}"
 
-    if need_validate_instance_version(release_type):
+    if need_validate_instance_version(release_type, github_access_token, slug, release_version):
         try:
             validate_instance_version(github_access_token, subapp_paths, slug, release_version)
         except Exception as e:
