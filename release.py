@@ -588,15 +588,6 @@ def is_valid_versions(instace_version: str, sdk_version: str, versions_json: Dic
 
 
 def validate_instance_version(github_access_token: str, subapp_paths: List[str], slug:str, release_version: str):
-    # check requirements.txt
-    for subapp_path in subapp_paths:
-        if subapp_path is None:
-            subapp_path = ""
-        if Path(subapp_path, "requirements.txt").exists():
-            print(f"ERROR: requirements.txt file found in subapp {subapp_path if subapp_path else 'root'}")
-            print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
-            raise RuntimeError(f"requirements.txt file found in subapp: {subapp_path if subapp_path else 'root'}")
-    release_description = fetch_release_description(github_access_token, slug, release_version)
     # fetch versions.json
     try:
         versions_json = fetch_versions_json(github_access_token)
@@ -605,6 +596,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
     except Exception:
         print("ERROR: versions.json not found in supervisely/supervisely repository.")
         raise
+    release_description = fetch_release_description(github_access_token, slug, release_version)
     # fetch docker_images
     try:
         standard_docker_images = fetch_docker_images(github_access_token)
@@ -621,6 +613,14 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
+        if config.get("type", None) == "collection":
+            print(f"INFO: App {subapp_name} is a collection. Skipping validation.")
+            continue
+        # check requirements.txt
+        if Path("" if subapp_path is None else "", "requirements.txt").exists():
+            print(f"ERROR: requirements.txt file found in subapp {subapp_name}.")
+            print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
+            raise RuntimeError(f"requirements.txt file found in subapp: {subapp_name}")
         if "instance_version" not in config and "min_instance_version" not in config:
             print(f"ERROR: instance_version key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#instance_version")
             raise RuntimeError(f"instance_version key not found in {subapp_name}")
@@ -668,12 +668,12 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
 
 def need_validate_instance_version(release_type: str, github_access_token: str, slug: str, release_version: str):
-    if release_type == ReleaseType.RELEASE:
-        release_description = fetch_release_description(github_access_token, slug, release_version)
-        if release_description.find("skip_sdk_version_validation") != -1:
-            return False
-        return True
-    return False
+    if release_type != ReleaseType.RELEASE:
+        return False
+    release_description = fetch_release_description(github_access_token, slug, release_version)
+    if release_description.find("skip_sdk_version_validation") != -1:
+        return False
+    return True
 
 
 def run(
