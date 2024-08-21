@@ -648,6 +648,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
                 if "python_sdk_version" not in labels:
                     raise RuntimeError("python_sdk_version not found in the docker image labels.")
                 sdk_version = labels["python_sdk_version"]
+                sdk_version = sdk_version.split("+")[0].split("-")[0] # remove build metadata
             except Exception as e:
                 print(f"INFO: python_sdk_version not found in the docker image labels. Error: {e}")
                 print("INFO: When using custom docker images, you must provide the python_sdk_version in the docker image labels, example: python_sdk_version=6.73.10")
