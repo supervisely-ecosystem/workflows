@@ -645,15 +645,13 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
                     raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
                 inspect_data = json.loads(skopeo_result.stdout.decode("utf-8").strip())
                 labels = inspect_data["Labels"]
-                if "python_sdk_version" not in labels:
-                    raise RuntimeError("python_sdk_version not found in the docker image labels.")
                 sdk_version = None
                 for key in ("python_sdk_version", "python-sdk-version", "supervisely-sdk-version", "supervisely_sdk_version"):
                     if key in labels:
                         sdk_version = labels[key]
                         break
                 if sdk_version is None:
-                    raise RuntimeError("python_sdk_version not found in the docker image labels.")
+                    raise RuntimeError(f"python_sdk_version not found in the docker image labels. Labels: {', '.join(labels.keys())}")
                 sdk_version = sdk_version.split("+")[0].split("-")[0] # remove build metadata
             except Exception as e:
                 print(f"INFO: python_sdk_version not found in the docker image labels. Error: {e}")
