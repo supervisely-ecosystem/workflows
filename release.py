@@ -681,6 +681,21 @@ def need_validate_instance_version(release_type: str, github_access_token: str, 
     return True
 
 
+def validate_docker_image(subapp_paths):
+    for subapp_path in subapp_paths:
+        subapp_name = subapp_path if subapp_path else "root"
+        print("INFO: Validating subapp:", subapp_name)
+        try:
+            config = get_config(subapp_path)
+        except Exception:
+            print(f"ERROR: Config file not found in subapp {subapp_name}")
+            raise
+        docker_image = config["docker_image"].replace("supervisely/", "")
+        skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if skopeo_result.returncode != 0:
+            raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
+
+
 def run(
     dev_server_address: str,
     prod_server_address: str,
@@ -735,6 +750,12 @@ def run(
 
     repo = git.Repo()
     repo_url = f"https://github.com/{slug}"
+
+    try:
+        validate_docker_image(subapp_paths)
+    except:
+        print("Error validating docker image. Check that docker image config is correct.")
+        return 1
 
     if need_validate_instance_version(release_type, github_access_token, slug, release_version):
         try:
