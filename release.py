@@ -616,6 +616,9 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         if config.get("type", None) == "collection":
             print(f"INFO: App {subapp_name} is a collection. Skipping validation.")
             continue
+        if config.get("type", None) == "project":
+            print(f"INFO: App {subapp_name} is a project. Skipping validation.")
+            continue
         # check requirements.txt
         if Path("" if subapp_path is None else "", "requirements.txt").exists():
             print(f"ERROR: requirements.txt file found in subapp {subapp_name}.")
