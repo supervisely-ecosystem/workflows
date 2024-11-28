@@ -693,7 +693,7 @@ def validate_docker_image(subapp_paths):
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
-        if config["type"] == "project":
+        if config.get("type", None) == "project":
             return
         docker_image = config["docker_image"].replace("supervisely/", "")
         skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
