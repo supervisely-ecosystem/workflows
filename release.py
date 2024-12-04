@@ -619,6 +619,9 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         if config.get("type", None) == "project":
             print(f"INFO: App {subapp_name} is a project. Skipping validation.")
             continue
+        if config.get("type", None) == "client_side_app":
+            print(f"INFO: App {subapp_name} is a client_side_app. Skipping validation.")
+            continue
         # check requirements.txt
         if Path("" if subapp_path is None else "", "requirements.txt").exists():
             print(f"ERROR: requirements.txt file found in subapp {subapp_name}.")
@@ -693,7 +696,7 @@ def validate_docker_image(subapp_paths):
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
-        if config.get("type", None) == "project":
+        if config.get("type", None) in ["project", "collection", "client_side_app"]:
             return
         docker_image = config["docker_image"].replace("supervisely/", "")
         skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
