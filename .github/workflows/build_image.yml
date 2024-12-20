@@ -96,7 +96,7 @@ jobs:
           if [ -n "${{ inputs.sdk_version }}" ]; then
             echo "${{ inputs.sdk_version }}" > sdk_version.txt
           else
-            docker run --rm $IMAGE_NAME:${{ inputs.tag_version }} python -c "import supervisely as sly; print(sly.__version__)" > sdk_version.txt
+            docker run --rm $IMAGE_NAME:${{ inputs.tag_version }} pip show supervisely 2>/dev/null | awk '/^Version:/ {print $2}' > sdk_version.txt
           fi
         
       - name: Add SDK version label
