@@ -681,6 +681,8 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
 def need_validate_instance_version(release_type: str, github_access_token: str, slug: str, release_version: str):
     if release_type != ReleaseType.RELEASE:
         return False
+    if os.getenv("SKIP_INSTANCE_VERSION_VALIDATION", False):
+        return False
     release_description = fetch_release_description(github_access_token, slug, release_version)
     if release_description.find("skip_sdk_version_validation") != -1:
         return False
@@ -688,6 +690,8 @@ def need_validate_instance_version(release_type: str, github_access_token: str, 
 
 
 def validate_docker_image(subapp_paths):
+    if os.getenv("SKIP_IMAGE_VALIDATION", False):
+        return
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         print("INFO: Validating subapp:", subapp_name)
