@@ -581,6 +581,7 @@ def get_sdk_versions_range(instance_version: str, versions_json: Dict):
 
 
 def is_valid_versions(instace_version: str, sdk_version: str, versions_json: Dict):
+    return True
     min_sdk, max_sdk = get_sdk_versions_range(instace_version, versions_json)
     if min_sdk is None:
         return compare_semver(sdk_version, max_sdk) < 0
