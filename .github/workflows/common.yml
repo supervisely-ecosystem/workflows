@@ -24,6 +24,14 @@ on:
       RELEASE_TYPE:
         required: true
         type: string
+      SKIP_INSTANCE_VERSION_VALIDATION:
+        required: false
+        type: boolean
+        default: false
+      SKIP_IMAGE_VALIDATION:
+        required: false
+        type: boolean
+        default: false
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -72,3 +80,5 @@ jobs:
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
           RELEASE_TYPE: "${{ inputs.RELEASE_TYPE }}"
           SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"
+          SKIP_INSTANCE_VERSION_VALIDATION: "${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}"
+          SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
