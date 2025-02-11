@@ -36,6 +36,10 @@ on:
         required: false
         type: boolean
         default: false
+      COMMIT_SHA:
+        required: false
+        type: string
+        default: ''
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -53,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
       - uses: actions/checkout@v4
         with:

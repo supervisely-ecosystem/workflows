@@ -823,7 +823,7 @@ def run(
     release_version: str,
     release_description: str,
     release_type: Literal[
-        "private", "private-branch", "publish", "to-prod", "branch-to-dev"
+        "release", "release-branch", "publish"
     ],
     include_sly_releases=False,
     archive_only_config=False,
