@@ -1,19 +1,21 @@
-import re
-import subprocess
-import traceback
-from typing import Dict, List, Literal
-import os
-import sys
-import git
 import datetime
 import json
+import os
+import random
+import re
+import string
+import subprocess
+import sys
+import tarfile
 from pathlib import Path
+from typing import Dict, List, Literal
 
-import requests
-from github import Github, GitRelease, GithubException, ContentFile
-
-from supervisely.cli.release.run import hided
-from supervisely.cli.release.release import release, get_appKey, get_app_from_instance
+import git
+from github import ContentFile, Github, GithubException, GitRelease
+from supervisely.cli.release.release import (cd, delete_directory,
+                                             get_app_from_instance, get_appKey,
+                                             get_created_at, upload_archive)
+from supervisely.io.fs import dir_exists, list_files_recursively, remove_dir
 
 
 class ReleaseType:
@@ -113,6 +115,99 @@ def print_results(results):
     print()
     return success_count == len(results)
 
+def archive_application(repo: git.Repo, config, slug, archive_only_config=False):
+    archive_folder = "".join(random.choice(string.ascii_letters) for _ in range(5))
+    os.mkdir(archive_folder)
+    file_paths = [
+        Path(line.decode("utf-8")).absolute()
+        for line in subprocess.check_output(
+            "git ls-files --recurse-submodules", shell=True
+        ).splitlines()
+    ]
+    if slug is None:
+        app_folder_name = config["name"].lower()
+    else:
+        app_folder_name = slug.split("/")[1].lower()
+    app_folder_name = re.sub("[ \/]", "-", app_folder_name)
+    app_folder_name = re.sub("[\"'`,\[\]\(\)]", "", app_folder_name)
+    working_dir_path = Path(repo.working_dir).absolute()
+    should_remove_dir = None
+    if config.get("type", "app") == "client_side_app":
+        gui_folder_path = config["gui_folder_path"]
+        gui_folder_path = working_dir_path / gui_folder_path
+        if not dir_exists(gui_folder_path):
+            should_remove_dir = gui_folder_path
+            # if gui folder is empty, need to render it
+            with cd(str(working_dir_path), add_to_path=True):
+                exec(open("sly_sdk/render.py", "r").read(), {"__name__": "__main__"})
+                file_paths.extend(
+                    [Path(p).absolute() for p in list_files_recursively(str(gui_folder_path))]
+                )
+        archive_path = archive_folder + "/archive.tar"
+        write_mode = "w"
+    else:
+        archive_path = archive_folder + "/archive.tar.gz"
+        write_mode = "w:gz"
+    if archive_only_config:
+        file_paths = [p for p in file_paths if "config.json" in p.name]
+    with tarfile.open(archive_path, write_mode) as tar:
+        for path in file_paths:
+            if path.is_file():
+                tar.add(
+                    path.absolute(),
+                    Path(app_folder_name).joinpath(path.relative_to(working_dir_path)),
+                )
+    if should_remove_dir is not None:
+        # remove gui folder if it was rendered
+        remove_dir(should_remove_dir)
+    return archive_path
+
+
+def release(
+    server_address,
+    api_token,
+    appKey,
+    repo: git.Repo,
+    config,
+    readme,
+    release_name,
+    release_version,
+    modal_template="",
+    slug=None,
+    user_id=None,
+    subapp_path="",
+    created_at=None,
+    share_app=False,
+    archive_only_config=False,
+):
+    if created_at is None:
+        created_at = get_created_at(repo, release_version)
+    archive_path = archive_application(repo, config, slug, archive_only_config)
+    release = {
+        "name": release_name,
+        "version": release_version,
+    }
+    if created_at is not None:
+        release["createdAt"] = created_at
+    try:
+        response = upload_archive(
+            archive_path,
+            server_address,
+            api_token,
+            appKey,
+            release,
+            config,
+            readme,
+            modal_template,
+            slug,
+            user_id,
+            subapp_path,
+            share_app,
+        )
+    finally:
+        delete_directory(os.path.dirname(archive_path))
+    return response
+
 
 def do_release(
     repo,
@@ -126,6 +221,7 @@ def do_release(
     repo_url,
     created_at,
     share,
+    archive_only_config=False
 ):
     app_name = "Unknown"
     try:
@@ -156,6 +252,7 @@ def do_release(
             created_at=created_at,
             subapp_path=subapp_path,
             share_app=share,
+            archive_only_config=archive_only_config
         )
 
         return {
@@ -242,6 +339,7 @@ def run_release(
     subapp_paths: List[str],
     release_version: str,
     release_description: str,
+    archive_only_config = False
 ):
     if not is_valid_version(release_version):
         print("Release version is not valid. Should be in semver format (v1.2.3).")
@@ -294,6 +392,7 @@ def run_release(
                     repo_url=repo_url,
                     created_at=None,
                     share=share,
+                    archive_only_config=archive_only_config
                 )
             )
             if results[-1]["Status code"] == 200:
@@ -364,6 +463,7 @@ def run_release_branch(
     subapp_paths: List[str],
     release_version: str,
     release_description: str,
+    archive_only_config = False,
 ):
     if is_valid_version(release_version):
         print("Branch name is not valid. Should not be in semver format (v1.2.3).")
@@ -420,6 +520,7 @@ def run_release_branch(
                     repo_url=repo_url,
                     created_at=created_at,
                     share=share,
+                    archive_only_config=archive_only_config,
                 )
             )
             if results[-1]["Status code"] == 200:
@@ -464,6 +565,7 @@ def publish(
     slug: str,
     subapp_paths: List[str],
     gh_releases: List[GitRelease.GitRelease],
+    archive_only_config=False,
 ):
     """
     Creates a release for every release in the repository.
@@ -526,6 +628,7 @@ def publish(
                     repo_url=repo_url,
                     created_at=None,
                     share=False,
+                    archive_only_config=archive_only_config,
                 )
             )
             # if any of the releases is successful, consider the whole app release successful
@@ -723,6 +826,7 @@ def run(
         "private", "private-branch", "publish", "to-prod", "branch-to-dev"
     ],
     include_sly_releases=False,
+    archive_only_config=False,
 ):
     """
     slug - Slug of the app. Example: "supervisely-ecosystem/test-app"
@@ -788,6 +892,7 @@ def run(
             subapp_paths=subapp_paths,
             release_version=release_version,
             release_description=release_description,
+            archive_only_config=archive_only_config,
         )
 
     if release_type == ReleaseType.RELEASE_BRANCH:
@@ -803,6 +908,7 @@ def run(
             subapp_paths=subapp_paths,
             release_version=release_version,
             release_description=release_description,
+            archive_only_config=archive_only_config,
         )
 
     if release_type == ReleaseType.PUBLISH:
@@ -821,6 +927,7 @@ def run(
             slug=slug,
             subapp_paths=subapp_paths,
             gh_releases=gh_releases,
+            archive_only_config=archive_only_config,
         )
 
     return 1
@@ -837,6 +944,8 @@ def main():
     github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
+    archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
+    archive_only_config = archive_only_config in [1, "1", "true", "True", True]
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
@@ -853,6 +962,7 @@ def main():
             release_version=release_version,
             release_description=release_description,
             release_type=release_type,
+            archive_only_config=archive_only_config,
         )
     )
 

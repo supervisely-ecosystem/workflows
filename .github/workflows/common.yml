@@ -32,6 +32,10 @@ on:
         required: false
         type: boolean
         default: false
+      ARCHIVE_ONLY_CONFIG:
+        required: false
+        type: boolean
+        default: false
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -82,3 +86,4 @@ jobs:
           SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"
           SKIP_INSTANCE_VERSION_VALIDATION: "${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}"
           SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
+          ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
