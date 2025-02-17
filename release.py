@@ -865,7 +865,9 @@ def run(
         return 1
 
     repo = git.Repo()
-    repo_url = f"https://github.com/{slug}"
+    remote_name = repo.active_branch.tracking_branch().remote_name
+    remote = repo.remote(remote_name)
+    repo_url = remote.url
 
     try:
         validate_docker_image(subapp_paths)
