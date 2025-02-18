@@ -865,9 +865,13 @@ def run(
         return 1
 
     repo = git.Repo()
-    remote_name = repo.active_branch.tracking_branch().remote_name
-    remote = repo.remote(remote_name)
-    repo_url = remote.url
+    try:
+      remote_name = repo.active_branch.tracking_branch().remote_name
+      remote = repo.remote(remote_name)
+      repo_url = remote.url
+    except:
+      repo_url = f"https://github.com/{slug}"
+      print(f"Cannot define remote branch. Set repo_url to {repo_url}")
 
     try:
         validate_docker_image(subapp_paths)
