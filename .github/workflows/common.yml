@@ -67,6 +67,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.8
+      - name: Print Env Vars
+        run: |
+          echo "SUPERVISELY_SERVER_ADDRESS=${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
+          echo "SUPERVISELY_PROD_SERVER_ADDRESS=${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+          echo "SLUG=${{ inputs.SLUG }}"
+          echo "RELEASE_VERSION=${{ inputs.RELEASE_VERSION }}"
+          echo "RELEASE_DESCRIPTION=${{ inputs.RELEASE_DESCRIPTION }}"
+          echo "SUBAPP_PATHS=${{ inputs.SUBAPP_PATHS }}"
+          echo "RELEASE_TYPE=${{ inputs.RELEASE_TYPE }}"
+          echo "SKIP_INSTANCE_VERSION_VALIDATION=${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}"
+          echo "SKIP_IMAGE_VALIDATION=${{ inputs.SKIP_IMAGE_VALIDATION }}"
+          echo "ARCHIVE_ONLY_CONFIG=${{ inputs.ARCHIVE_ONLY_CONFIG }}"
+          echo "COMMIT_SHA=${{ inputs.COMMIT_SHA }}"
       - name: Install dependencies
         run: |
           sudo apt-get install skopeo
