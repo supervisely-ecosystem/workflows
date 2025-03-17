@@ -9,7 +9,7 @@ on:
         type: string
         default: ''
       dockerfile_path:
-        description: 'Path to Dockerfile (optional)'
+        description: 'Path to Dockerfile'
         required: true
         type: string
         default: 'docker/Dockerfile'
@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Info
         run: |
-          IMAGE_NAME=${{ github.event.inputs.image_name }}
+          IMAGE_NAME=${{ inputs.image_name }}
           if [ -z "$IMAGE_NAME" ]; then
             IMAGE_NAME=${GITHUB_REPOSITORY#*/}
           fi
@@ -44,17 +44,18 @@ jobs:
           fi
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           echo "Image name: $IMAGE_NAME"
-          echo "Tag version: ${{ github.event.inputs.tag_version }}"
+          echo "Tag version: ${{ inputs.tag_version }}"
+          echo "Dockerfile path: ${{ inputs.dockerfile_path }}"
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
-          tool-cache: false
+          tool-cache: true
           android: true
           dotnet: true
           haskell: true
           large-packages: true
-          docker-images: false
+          docker-images: true
           swap-storage: true
           
       - name: Set up QEMU
@@ -78,32 +79,36 @@ jobs:
           repository: supervisely-ecosystem/workflows
           path: workflow
 
+      - name: Delete .git folder
+        run: |
+          rm -rf .git
+
       - name: Build
         uses: docker/build-push-action@v5
         with:
           push: false
           load: true
-          file: ${{ github.event.inputs.dockerfile_path }}
-          tags: ${{ env.IMAGE_NAME }}:${{ github.event.inputs.tag_version }}
+          file: ${{ inputs.dockerfile_path }}
+          tags: ${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}
     
       - name: Extract SDK version
         run: |
-          if [ -n "${{ github.event.inputs.sdk_version }}" ]; then
-            echo "${{ github.event.inputs.sdk_version }}" > sdk_version.txt
+          if [ -n "${{ inputs.sdk_version }}" ]; then
+            echo "${{ inputs.sdk_version }}" > sdk_version.txt
           else
-            docker run --rm $IMAGE_NAME:${{ github.event.inputs.tag_version }} python -c "import supervisely as sly; print(sly.__version__)" > sdk_version.txt
+            docker run --rm $IMAGE_NAME:${{ inputs.tag_version }} pip show supervisely 2>/dev/null | awk '/^Version:/ {print $2}' > sdk_version.txt
           fi
         
       - name: Add SDK version label
         run: |
           SDK_VERSION=$(cat sdk_version.txt)
-          printf "FROM %s:${{ github.event.inputs.tag_version }}\nLABEL sdk-version=\"%s\"\n" "$IMAGE_NAME" "$SDK_VERSION" > Dockerfile.label
-          docker build -f Dockerfile.label -t $IMAGE_NAME:${{ github.event.inputs.tag_version }} .
+          printf "FROM %s:${{ inputs.tag_version }}\nLABEL supervisely-sdk-version=\"%s\"\n" "$IMAGE_NAME" "$SDK_VERSION" > Dockerfile.label
+          docker build -f Dockerfile.label -t $IMAGE_NAME:${{ inputs.tag_version }} .
     
       - name: Inspect Image
         run: |
-          docker inspect $IMAGE_NAME:${{ github.event.inputs.tag_version }}
+          docker inspect $IMAGE_NAME:${{ inputs.tag_version }}
 
       - name: Push
         run: |
-          docker push $IMAGE_NAME:${{ github.event.inputs.tag_version }}
+          docker push $IMAGE_NAME:${{ inputs.tag_version }}

@@ -24,6 +24,22 @@ on:
       RELEASE_TYPE:
         required: true
         type: string
+      SKIP_INSTANCE_VERSION_VALIDATION:
+        required: false
+        type: boolean
+        default: false
+      SKIP_IMAGE_VALIDATION:
+        required: false
+        type: boolean
+        default: false
+      ARCHIVE_ONLY_CONFIG:
+        required: false
+        type: boolean
+        default: false
+      COMMIT_SHA:
+        required: false
+        type: string
+        default: ''
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -41,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
       - uses: actions/checkout@v4
         with:
@@ -52,6 +69,7 @@ jobs:
           python-version: 3.8
       - name: Install dependencies
         run: |
+          sudo apt-get install skopeo
           python -m pip install --upgrade pip
           pip install -r ./workflow/requirements.txt
           pip uninstall -y urllib3 requests-toolbelt
@@ -71,3 +89,6 @@ jobs:
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
           RELEASE_TYPE: "${{ inputs.RELEASE_TYPE }}"
           SUBAPP_PATHS: "${{ inputs.SUBAPP_PATHS }}"
+          SKIP_INSTANCE_VERSION_VALIDATION: "${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}"
+          SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
+          ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
