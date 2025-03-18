@@ -62,6 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: supervisely-ecosystem/workflows
+          ref: ${{ github.ref }}
           path: workflow
       - name: Set up Python
         uses: actions/setup-python@v5
