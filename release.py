@@ -924,7 +924,7 @@ def run(
                 github_access_token, slug, include_sly_releases
             )
         except GithubException as e:
-            print("Error connecting to Github. Could not publish app.")
+            print(f"Error connecting to Github. Could not publish app: {e}")
             return 1
         return publish(
             prod_server_address=prod_server_address,
