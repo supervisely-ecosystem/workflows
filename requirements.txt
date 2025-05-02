@@ -1,2 +1,2 @@
 PyGithub==1.58.1
-supervisely==6.73.272
+supervisely==6.73.354
