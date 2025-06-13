@@ -955,7 +955,7 @@ def main():
     archive_only_config = archive_only_config in [1, "1", "true", "True", True]
 
     release_type = os.getenv("RELEASE_TYPE", None)
-
+    print("started")
     sys.exit(
         run(
             dev_server_address=dev_server_address,
