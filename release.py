@@ -1,3 +1,4 @@
+print("importing")
 import datetime
 import json
 import os
@@ -12,11 +13,12 @@ from typing import Dict, List, Literal
 
 import git
 from github import ContentFile, Github, GithubException, GitRelease
+print("importing supervisely")
 from supervisely.cli.release.release import (cd, delete_directory,
                                              get_app_from_instance, get_appKey,
                                              get_created_at, upload_archive)
 from supervisely.io.fs import dir_exists, list_files_recursively, remove_dir
-
+print("imports done")
 
 class ReleaseType:
     RELEASE = "release"
