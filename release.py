@@ -923,7 +923,7 @@ def run(
                 github_access_token, slug, include_sly_releases
             )
         except GithubException as e:
-            print("Error connecting to Github. Could not publish app.")
+            print(f"Error connecting to Github. Could not publish app: {e}")
             return 1
         return publish(
             prod_server_address=prod_server_address,
@@ -947,7 +947,7 @@ def main():
     prod_api_token = os.getenv("PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
-    github_access_token = os.getenv("GITHUB_ACCESS_TOKEN", None)
+    github_access_token = os.getenv("GH_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
