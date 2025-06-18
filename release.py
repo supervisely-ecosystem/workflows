@@ -12,9 +12,14 @@ from typing import Dict, List, Literal
 
 import git
 from github import ContentFile, Github, GithubException, GitRelease
-from supervisely.cli.release.release import (cd, delete_directory,
-                                             get_app_from_instance, get_appKey,
-                                             get_created_at, upload_archive)
+from supervisely.cli.release.release import (
+    cd,
+    delete_directory,
+    get_app_from_instance,
+    get_appKey,
+    get_created_at,
+    upload_archive,
+)
 from supervisely.io.fs import dir_exists, list_files_recursively, remove_dir
 
 
@@ -179,6 +184,7 @@ def release(
     created_at=None,
     share_app=False,
     archive_only_config=False,
+    files=None
 ):
     if created_at is None:
         created_at = get_created_at(repo, release_version)
@@ -203,6 +209,7 @@ def release(
             user_id,
             subapp_path,
             share_app,
+            files
         )
     finally:
         delete_directory(os.path.dirname(archive_path))
@@ -230,6 +237,7 @@ def do_release(
         readme = get_readme(subapp_path)
         modal_template = get_modal_template(config)
         app_name = get_app_name(config)
+        files = config.get("files", None)
 
         if share:
             try:
@@ -252,7 +260,8 @@ def do_release(
             created_at=created_at,
             subapp_path=subapp_path,
             share_app=share,
-            archive_only_config=archive_only_config
+            archive_only_config=archive_only_config,
+            files=files
         )
 
         return {
