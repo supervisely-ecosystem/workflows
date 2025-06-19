@@ -41,7 +41,7 @@ jobs:
         run: |
           python workflow/release_models.py
         env:
-          SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS }}
+          SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
           MODELS_PATH: ${{ inputs.MODELS_PATH }}
           FRAMEWORK: ${{ inputs.FRAMEWORK }}
