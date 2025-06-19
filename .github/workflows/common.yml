@@ -40,6 +40,14 @@ on:
         required: false
         type: string
         default: ''
+      MODELS_PATH:
+        required: false
+        type: string
+        default: ''
+      FRAMEWORK:
+        required: false
+        type: string
+        default: ''
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -92,3 +100,13 @@ jobs:
           SKIP_INSTANCE_VERSION_VALIDATION: "${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}"
           SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
           ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
+
+  Models-release:
+    needs: Supervisely-Release
+    uses: supervisely-ecosystem/workflows/.github/workflows/release_models.yml@master
+    secrets:
+      API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+    with:
+      SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+      MODELS_PATH: "${{ inputs.MODELS_PATH }}"
+      FRAMEWORK: "${{ inputs.FRAMEWORK }}"
