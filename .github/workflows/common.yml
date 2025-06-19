@@ -103,7 +103,7 @@ jobs:
 
   Models-release:
     needs: Supervisely-Release
-    uses: supervisely-ecosystem/workflows/.github/workflows/release_models.yml@master
+    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
     secrets:
       API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
     with:
