@@ -17,3 +17,5 @@ jobs:
       RELEASE_DESCRIPTION: ""
       RELEASE_TYPE: "publish"
       SUBAPP_PATHS: "__ROOT_APP__, subapp"
+      MODELS_PATH: ""
+      FRAMEWORK: ""

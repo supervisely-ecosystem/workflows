@@ -23,3 +23,5 @@ jobs:
       RELEASE_DESCRIPTION: "${{ github.event.release.name }}"
       RELEASE_TYPE: "release"
       SUBAPP_PATHS: "__ROOT_APP__, subapp"
+      MODELS_PATH: ""
+      FRAMEWORK: ""
