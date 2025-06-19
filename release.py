@@ -238,7 +238,12 @@ def do_release(
         modal_template = get_modal_template(config)
         app_name = get_app_name(config)
         files = config.get("files", None)
-
+        if files is not None:
+            files = files.copy()
+            for file_name, file_path in files.items():
+                file_path = str(module_root.joinpath(file_path).absolute())
+                files[file_name] = file_path
+    
         if share:
             try:
                 app = get_app_from_instance(appKey, api_token, server_address)
