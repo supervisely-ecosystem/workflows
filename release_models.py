@@ -144,7 +144,7 @@ def find_serve_and_train_modules():
 
 
 def read_models():
-    models = json.load(open(models_path), "r")
+    models = json.load(open(models_path, "r"))
     serve, train = find_serve_and_train_modules()
     for model in models:
         model["framework"] = framework
