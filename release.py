@@ -12,14 +12,9 @@ from typing import Dict, List, Literal
 
 import git
 from github import ContentFile, Github, GithubException, GitRelease
-from supervisely.cli.release.release import (
-    cd,
-    delete_directory,
-    get_app_from_instance,
-    get_appKey,
-    get_created_at,
-    upload_archive,
-)
+from supervisely.cli.release.release import (cd, delete_directory,
+                                             get_app_from_instance, get_appKey,
+                                             get_created_at, upload_archive)
 from supervisely.io.fs import dir_exists, list_files_recursively, remove_dir
 
 
@@ -241,7 +236,6 @@ def do_release(
         if files is not None:
             files = files.copy()
             for file_name, file_path in files.items():
-                file_path = str(module_root.joinpath(file_path).absolute())
                 files[file_name] = file_path
     
         if share:
