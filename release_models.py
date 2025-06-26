@@ -35,6 +35,7 @@ MODEL_KEY_MAPPING = {
     "files": "files",
     "speed_tests": "speedTests",
     "evaluation": "evaluation",
+    "modality": "modality",
 }
 
 
@@ -120,7 +121,11 @@ def list_models():
 
 def add_model(parameters: dict):
     required_keys = ["name", "framework", "task"]
+    defaults = {"modality": "image"}
     data = model_config_to_request(parameters)
+    for key, value in defaults.items():
+        if key not in data:
+            data[key] = value
     missing_keys = [k for k in required_keys if k not in data]
     if missing_keys:
         raise ValueError(f"Missing required parameters: {missing_keys}")
