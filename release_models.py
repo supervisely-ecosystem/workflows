@@ -136,8 +136,8 @@ def update_model(model_id: int, parameters: dict):
 def find_serve_and_train_modules():
     try:
         modules = api.app.get_list_ecosystem_modules(categories=[f"framework:{framework}"], categories_operation="and")
-        serve_module = next((m for m in modules if "serve" in m.config["categories"]))
-        train_module = next((m for m in modules if "train" in m.config["categories"]))
+        serve_module = next((m for m in modules if "serve" in m["config"]["categories"]))
+        train_module = next((m for m in modules if "train" in m["config"]["categories"]))
     except StopIteration:
         raise RuntimeError(f"Could not find serve or train modules for framework {framework}")
     return serve_module, train_module
