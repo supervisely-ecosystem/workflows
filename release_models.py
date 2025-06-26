@@ -148,8 +148,8 @@ def read_models():
     serve, train = find_serve_and_train_modules()
     for model in models:
         model["framework"] = framework
-        model["serve_module_id"] = serve.id
-        model["train_module_id"] = train.id
+        model["serve_module_id"] = serve["id"]
+        model["train_module_id"] = train["id"]
     return models
 
 
