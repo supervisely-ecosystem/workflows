@@ -13,7 +13,10 @@ dotenv.load_dotenv(os.path.expanduser("~/supervisely.env"))
 api = Api()
 server_address = os.environ["SERVER_ADDRESS"]
 api_token = os.environ["API_TOKEN"]
-models_path = os.environ["MODELS_PATH"]
+models_path = os.environ.get("MODELS_PATH", "")
+det_models_path = os.environ.get("DET_MODELS_PATH", "")
+seg_models_path = os.environ.get("SEG_MODELS_PATH", "")
+pose_models_path = os.environ.get("POSE_MODELS_PATH", "")
 framework = os.environ["FRAMEWORK"]
 
 
@@ -35,7 +38,7 @@ MODEL_KEY_MAPPING = {
     "files": "files",
     "speed_tests": "speedTests",
     "evaluation": "evaluation",
-    "modality": "modality",
+    "task": "task",
 }
 
 
@@ -149,8 +152,27 @@ def find_serve_and_train_modules():
 
 
 def read_models():
-    models = json.load(open(models_path, "r"))
     serve, train = find_serve_and_train_modules()
+    models = []
+    if models_path != "":
+        models.extend(json.load(open(models_path, "r")))
+    if det_models_path != "":
+        det_models = json.load(open(det_models_path, "r"))
+        for model in det_models:
+            model["task"] = "object detection"
+            models.append(model)
+    if seg_models_path != "":
+        print("Segmentation models are not supported yet.")
+        # seg_models = json.load(open(seg_models_path, "r"))
+        # for model in seg_models:
+        #     model["task"] = "semantic_segmentation"
+        #     models.append(model)
+    if pose_models_path != "":
+        print("Pose estimation models are not supported yet.")
+        # pose_models = json.load(open(pose_models_path, "r"))
+        # for model in pose_models:
+        #     model["task"] = "pose_estimation"
+        #     models.append(model)
     for model in models:
         model["framework"] = framework
         model["serve_module_id"] = serve["id"]
