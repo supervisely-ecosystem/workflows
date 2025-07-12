@@ -22,6 +22,7 @@ framework = os.environ["FRAMEWORK"]
 
 MODEL_KEY_MAPPING = {
     "Model": "name",
+    "model_name": "name",
     "framework": "framework",
     ("meta", "task_type"): "task",
     "architecture": "architecture",
@@ -30,6 +31,7 @@ MODEL_KEY_MAPPING = {
     "num_classes": "numClasses",
     "size": "size",
     "Params(M)": "paramsM",
+    "Params (M)": "paramsM",
     "GFLOPs": "GFLOPs",
     "serve_module_id": "serveModuleId",
     "train_module_id": "trainModuleId",
