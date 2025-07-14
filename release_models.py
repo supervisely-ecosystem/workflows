@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from typing import List, Union
+from typing import Dict, List, Union
 
 import dotenv
 import requests
@@ -182,6 +182,16 @@ def read_models():
     return models
 
 
+def get_model_name(model: Dict) -> str:
+    if "model_name" in model:
+        return model["model_name"]
+    if "Model" in model:
+        return model["Model"]
+    if "name" in model:
+        return model["name"]
+    return
+
+
 def main():
     if models_path == "" or framework == "":
         print("Models path or framework is not set. Models will not be added.")
@@ -199,7 +209,7 @@ def main():
     models_to_add = []
     models_to_add_names = []
     for model in models:
-        model_name = get_value(model, "Model")
+        model_name = get_model_name(model)
         if model_name not in existing_model_names:
             models_to_add.append(model)
             models_to_add_names.append(model_name)
