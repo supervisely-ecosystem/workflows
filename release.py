@@ -45,6 +45,8 @@ def gh_release_is_published(release: GitRelease.GitRelease):
 
 
 def get_config(app_path):
+    if app_path == "root":
+        app_path = None
     app_path = Path(os.getcwd()) if app_path is None else Path(app_path)
     with open(app_path.joinpath("config.json"), "r") as f:
         config = json.load(f)
@@ -52,6 +54,8 @@ def get_config(app_path):
 
 
 def get_readme(app_path):
+    if app_path == "root":
+        app_path = None
     app_path = Path(os.getcwd()) if app_path is None else Path(app_path)
     try:
         with open(app_path.joinpath("README.md"), "r", encoding="utf_8") as f:
