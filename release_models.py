@@ -223,12 +223,13 @@ def main():
 
     success = True
     for model in models_to_add:
+        model_name = get_model_name(model)
         try:
             response = add_model(model)
-            print(f"Added model: {model['Model']} with ID {response['id']}")
+            print(f"Added model: {model_name} with ID {response['id']}")
         except Exception as e:
             success = False
-            print(f"Failed to add model {model['Model']}: {e}")
+            print(f"Failed to add model {model_name}: {e}")
     
     if success:
         print("All models added successfully.")
