@@ -742,7 +742,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             print(f"INFO: App {subapp_name} is a client_side_app. Skipping validation.")
             continue
         # check requirements.txt
-        if Path("" if subapp_path is None else "", "requirements.txt").exists():
+        if Path("" if subapp_path is None else subapp_path, "requirements.txt").exists():
             print(f"ERROR: requirements.txt file found in subapp {subapp_name}.")
             print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
             raise RuntimeError(f"requirements.txt file found in subapp: {subapp_name}")
