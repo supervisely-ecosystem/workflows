@@ -1,4 +1,4 @@
-name: Sync Models
+name: Update Models
 on:
   workflow_call:
     inputs:
@@ -19,7 +19,7 @@ on:
         required: true
 
 jobs:
-  release-models:
+  update-models:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
