@@ -144,6 +144,7 @@ def update_model(model_id: int, parameters: dict):
     evaluation = get_evaluation(parameters)
     if evaluation:
         data["evaluation"] = evaluation
+    print(f"Updating model with ID {model_id} with data: {json.dumps(data, indent=2)}")
     return post(f"ecosystem.models.update", data=data)
 
 
