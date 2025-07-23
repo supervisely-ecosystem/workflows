@@ -225,8 +225,8 @@ def main():
                 models_to_update.append((existing_model["id"], model))
                 models_to_update_names.append(existing_model_name)
     print()
-    print("Models to update:", existing_model_name)
-    if not existing_model_name:
+    print("Models to update:", models_to_update_names)
+    if not models_to_update_names:
         print("No models to update.")
         return
     print()
