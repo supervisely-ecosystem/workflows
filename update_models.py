@@ -58,13 +58,13 @@ def get_value(data: dict, keys: Union[str, List[str]]):
 
 
 
-def api_call(api_method, endpoint, params=None, data=None):
+def api_call(api_method, endpoint, params=None, data=None, json=None):
     call_function = requests.post if api_method == "post" else requests.get
     url = server_address.rstrip("/") + "/public/api/v3/" + endpoint.lstrip("/")
     headers = {
         "x-api-key": api_token,
     }
-    r = call_function(url, params=params, data=data, headers=headers)
+    r = call_function(url, params=params, data=data, json=json, headers=headers)
     try:
         r.raise_for_status()
     except Exception:
@@ -73,11 +73,11 @@ def api_call(api_method, endpoint, params=None, data=None):
         raise
     return r.json()
 
-def get(method, params=None, data=None):
-    return api_call("get", method, params=params, data=data)
+def get(method, params=None, data=None, json=None):
+    return api_call("get", method, params=params, data=data, json=json)
 
-def post(method, params=None, data=None):
-    return api_call("post", method, params=params, data=data)
+def post(method, params=None, data=None, json=None):
+    return api_call("post", method, params=params, data=data, json=json)
 
 
 def get_list_all_pages(method, data):
@@ -145,7 +145,7 @@ def update_model(model_id: int, parameters: dict):
     if evaluation:
         data["evaluation"] = evaluation
     print(f"Updating model with ID {model_id} with data: {json.dumps(data, indent=2)}")
-    return post(f"ecosystem.models.update", data=data)
+    return post(f"ecosystem.models.update", json=data)
 
 
 def find_serve_and_train_modules():
