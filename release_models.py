@@ -58,13 +58,13 @@ def get_value(data: dict, keys: Union[str, List[str]]):
 
 
 
-def api_call(api_method, endpoint, params=None, data=None):
+def api_call(api_method, endpoint, params=None, data=None, json=None):
     call_function = requests.post if api_method == "post" else requests.get
     url = server_address.rstrip("/") + "/public/api/v3/" + endpoint.lstrip("/")
     headers = {
         "x-api-key": api_token,
     }
-    r = call_function(url, params=params, data=data, headers=headers)
+    r = call_function(url, params=params, data=data, json=json, headers=headers)
     try:
         r.raise_for_status()
     except Exception:
@@ -73,11 +73,11 @@ def api_call(api_method, endpoint, params=None, data=None):
         raise
     return r.json()
 
-def get(method, params=None, data=None):
-    return api_call("get", method, params=params, data=data)
+def get(method, params=None, data=None, json=None):
+    return api_call("get", method, params=params, data=data, json=json)
 
-def post(method, params=None, data=None):
-    return api_call("post", method, params=params, data=data)
+def post(method, params=None, data=None, json=None):
+    return api_call("post", method, params=params, data=data, json=json)
 
 
 def get_list_all_pages(method, data):
@@ -134,7 +134,7 @@ def add_model(parameters: dict):
     missing_keys = [k for k in required_keys if k not in data]
     if missing_keys:
         raise ValueError(f"Missing required parameters: {missing_keys}")
-    return post("ecosystem.models.add", data=data)
+    return post("ecosystem.models.add", json=data)
 
 
 def update_model(model_id: int, parameters: dict):
