@@ -32,6 +32,7 @@ MODEL_KEY_MAPPING = {
     "size": "size",
     "Params(M)": "paramsM",
     "Params (M)": "paramsM",
+    "params (M)": "paramsM",
     "GFLOPs": "GFLOPs",
     "serve_module_id": "serveModuleId",
     "train_module_id": "trainModuleId",
