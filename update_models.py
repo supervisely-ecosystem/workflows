@@ -199,7 +199,7 @@ def get_evaluation(model: Dict) -> Dict:
             return {
                 "metrics": {
                     "mAP": model[key],
-                    "primary_key": "mAP"
+                    "primaryKey": "mAP"
                 },
             }
     return None
