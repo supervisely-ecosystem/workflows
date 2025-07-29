@@ -663,8 +663,14 @@ def publish(
 def fetch_versions_json(github_access_token):
     GH = Github(github_access_token)
     repo = GH.get_repo("supervisely/supervisely")
-    versions_json = repo.get_contents("versions.json", ref="master")
-    return json.loads(versions_json.decoded_content.decode("utf-8"))
+    try:
+        # Try to get versions.json from the supervisely subdirectory (new location)
+        versions_json = repo.get_contents("supervisely/versions.json", ref="master")
+        return json.loads(versions_json.decoded_content.decode("utf-8"))
+    except GithubException:
+        # If not found, try the old location (root directory)
+        versions_json = repo.get_contents("versions.json", ref="master")
+        return json.loads(versions_json.decoded_content.decode("utf-8"))
 
 
 def fetch_docker_images(github_access_token):
@@ -713,7 +719,7 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
         print("INFO: Versions info:")
         print(json.dumps(versions_json, indent=4))
     except Exception:
-        print("ERROR: versions.json not found in supervisely/supervisely repository.")
+        print("ERROR: versions.json not found in root and supervisely/ subdirectory.")
         raise
     release_description = fetch_release_description(github_access_token, slug, release_version)
     # fetch docker_images
