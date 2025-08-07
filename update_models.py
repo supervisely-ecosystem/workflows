@@ -204,7 +204,7 @@ def get_model_name(model: Dict) -> str:
 
 
 def get_evaluation(model: Dict) -> Dict:
-    for key in ["AP_val", "mAP"]:
+    for key in ["mAP", "AP_val", "mAP (mask)"]:
         if key in model:
             return {
                 "metrics": {
