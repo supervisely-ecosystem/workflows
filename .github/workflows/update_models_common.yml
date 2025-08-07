@@ -8,6 +8,9 @@ on:
       DET_MODELS_PATH:
         type: string
         required: false
+      SEG_MODELS_PATH:
+        type: string
+        required: false
       FRAMEWORK:
         type: string
         required: true
@@ -48,4 +51,5 @@ jobs:
           API_TOKEN: ${{ secrets.API_TOKEN }}
           MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
+          SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
           FRAMEWORK: ${{ inputs.FRAMEWORK }}

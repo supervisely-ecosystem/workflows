@@ -5,7 +5,7 @@ on:
       models_path:
         type: string
         required: false
-      det_models_path:
+      seg_models_path:
         type: string
         required: false
       framework:
@@ -17,7 +17,7 @@ jobs:
     uses: supervisely-ecosystem/workflows/.github/workflows/update_models_common.yml@master
     with:
       MODELS_PATH: ${{ github.event.inputs.models_path }}
-      DET_MODELS_PATH: ${{ github.event.inputs.models_path }}
+      SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
       FRAMEWORK: ${{ github.event.inputs.framework }}
       SERVER_ADDRESS: ${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}
     secrets:

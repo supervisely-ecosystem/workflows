@@ -166,13 +166,23 @@ def read_models():
     if det_models_path != "":
         det_models = json.load(open(det_models_path, "r"))
         for model in det_models:
+            task_type = model.get("task_type", None)
+            if task_type is None:
+                task_type = model.get("meta", {}).get("task_type", None)
+            if task_type is None:
+                task_type = "object detection"
+            model["task"] = task_type
             models.append(model)
     if seg_models_path != "":
-        print("Segmentation models are not supported yet.")
-        # seg_models = json.load(open(seg_models_path, "r"))
-        # for model in seg_models:
-        #     model["task"] = "semantic_segmentation"
-        #     models.append(model)
+        seg_models = json.load(open(seg_models_path, "r"))
+        for model in seg_models:
+            task_type = model.get("task_type", None)
+            if task_type is None:
+                task_type = model.get("meta", {}).get("task_type", None)
+            if task_type is None:
+                task_type = "instance segmentation"
+            model["task"] = task_type
+            models.append(model)
     if pose_models_path != "":
         print("Pose estimation models are not supported yet.")
         # pose_models = json.load(open(pose_models_path, "r"))
