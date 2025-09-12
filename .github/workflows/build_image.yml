@@ -126,3 +126,8 @@ jobs:
       - name: Push
         run: |
           docker push $IMAGE_NAME:${{ inputs.tag_version }}
+
+      - name: Push latest tag
+        if: ${{ inputs.latest_tag }}
+        run: |
+          docker push $IMAGE_NAME:latest
