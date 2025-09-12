@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ''
+      latest_tag:
+        description: 'Also tag image as "latest"'
+        required: false
+        type: boolean
+        default: false
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -82,6 +87,15 @@ jobs:
       - name: Delete .git folder
         run: |
           rm -rf .git
+      
+      - name: Set tags
+        id: tags
+        run: |
+          TAGS="${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}"
+          if [[ "${{ inputs.latest_tag }}" == "true" ]]; then
+            TAGS="${TAGS},${{ env.IMAGE_NAME }}:latest"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build
         uses: docker/build-push-action@v5
@@ -89,7 +103,7 @@ jobs:
           push: false
           load: true
           file: ${{ inputs.dockerfile_path }}
-          tags: ${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}
+          tags: ${{ steps.tags.outputs.tags }}
     
       - name: Extract SDK version
         run: |
