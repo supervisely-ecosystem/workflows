@@ -39,15 +39,15 @@ on:
       COMMIT_SHA:
         required: false
         type: string
-        default: ''
+        default: ""
       MODELS_PATH:
         required: false
         type: string
-        default: ''
+        default: ""
       FRAMEWORK:
         required: false
         type: string
-        default: ''
+        default: ""
       RELEASE_MODELS:
         required: false
         type: boolean
@@ -61,7 +61,6 @@ on:
         required: true
       GH_ACCESS_TOKEN:
         required: true
-      
 
 jobs:
   Supervisely-Release:
@@ -89,6 +88,7 @@ jobs:
           pip install -r ./workflow/requirements.txt
       - name: Supervisely Release
         run: |
+          . venv/bin/activate
           python ./workflow/release.py
         env:
           DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
@@ -116,7 +116,3 @@ jobs:
       SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
-
-
-
-
