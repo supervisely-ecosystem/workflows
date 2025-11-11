@@ -65,27 +65,28 @@ on:
 
 jobs:
   Supervisely-Release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.8
+          python-version: 3.12
       - name: Install dependencies
         run: |
-          sudo apt-get install skopeo
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+          python -m venv venv
+          . venv/bin/activate
           python -m pip install --upgrade pip
           pip install -r ./workflow/requirements.txt
-          pip uninstall -y urllib3 requests-toolbelt
-          pip install urllib3==1.26.15 requests-toolbelt==0.10.1
       - name: Supervisely Release
         run: |
           python ./workflow/release.py
@@ -115,6 +116,7 @@ jobs:
       SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
+
 
 
 
