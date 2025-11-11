@@ -1,2 +1,4 @@
+GitPython==3.1.45
 PyGithub==2.8.1
 supervisely==6.73.469
+
