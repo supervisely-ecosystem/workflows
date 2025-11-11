@@ -37,7 +37,7 @@ def compare_semver(version1: str, version2: str):
 
 
 def is_valid_version(version: str):
-    return re.fullmatch("v\d+\.\d+\.\d+", version) != None
+    return re.fullmatch(r"v\d+\.\d+\.\d+", version) != None
 
 
 def gh_release_is_published(release: GitRelease.GitRelease):
@@ -136,8 +136,8 @@ def archive_application(repo: git.Repo, config, slug, archive_only_config=False)
         app_folder_name = config["name"].lower()
     else:
         app_folder_name = slug.split("/")[1].lower()
-    app_folder_name = re.sub("[ \/]", "-", app_folder_name)
-    app_folder_name = re.sub("[\"'`,\[\]\(\)]", "", app_folder_name)
+    app_folder_name = re.sub(r"[ \/]", "-", app_folder_name)
+    app_folder_name = re.sub(r"[\"'`,\[\]\(\)]", "", app_folder_name)
     working_dir_path = Path(repo.working_dir).absolute()
     should_remove_dir = None
     if config.get("type", "app") == "client_side_app":
