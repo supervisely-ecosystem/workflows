@@ -73,6 +73,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: supervisely-ecosystem/workflows
+          ref: fix-segfault
           path: workflow
       - name: Set up Python
         uses: actions/setup-python@v6
