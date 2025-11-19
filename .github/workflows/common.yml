@@ -64,7 +64,7 @@ on:
 
 jobs:
   Supervisely-Release:
-    runs-on: ubuntu-24.04
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v5
         with:
@@ -116,3 +116,4 @@ jobs:
       SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
+
