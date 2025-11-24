@@ -81,7 +81,7 @@ jobs:
             echo "LABEL supervisely-sdk-version=${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
             echo "Supervisely SDK version: ${{ inputs.sdk_version }}"
           else
-            SDK_VERSION=$(grep -E '^LABEL +(python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=' ".github/workflows/Dockerfile" | awk -F= '{print $2}' | tr -d '\"')
+            SDK_VERSION=$(grep -E '^LABEL +(python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=' "${{ inputs.dockerfile_path }}" | awk -F= '{print $2}' | tr -d '\"')
             if [ -z "$SDK_VERSION" ]; then
               echo "[ERROR] Python SDK version LABEL not found in Dockerfile! You should specify the SDK version as LABEL in Dockerfile or input parameter." >&2
               exit 1
