@@ -74,46 +74,28 @@ jobs:
           fi
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
-      - name: Build
+      - name: Get SDK version
+        run: |
+          if [ -n "${{ inputs.sdk_version }}" ]; then
+            sed -i.bak -E '/LABEL (python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=/d' "${{ inputs.dockerfile_path }}"
+            echo "LABEL supervisely-sdk-version=${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
+            echo "Supervisely SDK version: ${{ inputs.sdk_version }}"
+          else
+            SDK_VERSION=$(grep -E '^LABEL +(python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=' ".github/workflows/Dockerfile" | awk -F= '{print $2}' | tr -d '\"')
+            if [ -z "$SDK_VERSION" ]; then
+              echo "[ERROR] Python SDK version LABEL not found in Dockerfile! You should specify the SDK version as LABEL in Dockerfile or input parameter." >&2
+              exit 1
+            fi
+            echo "Supervisely SDK version: $SDK_VERSION"
+          fi
+
+      - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=$(dirname ${{ inputs.dockerfile_path }}) \
             --opt filename=$(basename ${{ inputs.dockerfile_path }}) \
-            --output type=docker,name=$IMAGE_NAME:${{ inputs.tag_version }} > image.tar
-          docker load < image.tar
-
-      - name: Extract SDK version
-        run: |
-          if [ -n "${{ inputs.sdk_version }}" ]; then
-            echo "${{ inputs.sdk_version }}" > sdk_version.txt
-          else
-            docker run --rm $IMAGE_NAME:${{ inputs.tag_version }} pip show supervisely 2>/dev/null | awk '/^Version:/ {print $2}' > sdk_version.txt
-          fi
-
-      - name: Add SDK version label
-        run: |
-          SDK_VERSION=$(cat sdk_version.txt)
-          printf "FROM %s:${{ inputs.tag_version }}\nLABEL supervisely-sdk-version=\"%s\"\n" "$IMAGE_NAME" "$SDK_VERSION" > Dockerfile.label
-
-          buildctl build \
-            --frontend dockerfile.v0 \
-            --local context=${{ github.workspace }} \
-            --local dockerfile=${{ github.workspace }} \
-            --opt filename=Dockerfile.label \
-            --output type=docker,name=$IMAGE_NAME:${{ inputs.tag_version }} > image_labeled.tar
-          docker load < image_labeled.tar
-
-      - name: Inspect Image
-        run: |
-          docker inspect $IMAGE_NAME:${{ inputs.tag_version }}
-
-      - name: Push
-        run: |
-          docker push $IMAGE_NAME:${{ inputs.tag_version }}
-
-      - name: Push latest tag
-        if: ${{ inputs.latest_tag }}
-        run: |
-          docker push $IMAGE_NAME:latest
+            --output type=image,name=name=docker.io/supervisely/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},name=docker.io/supervisely/${{ env.IMAGE_NAME }}:latest,push=true  \
+            --export-cache type=registry,ref=docker.io/supervisely/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --import-cache type=registry,ref=docker.io/supervisely/${{ env.IMAGE_NAME }}:buildcache
