@@ -66,11 +66,11 @@ jobs:
   Supervisely-Release:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
@@ -116,7 +116,3 @@ jobs:
       SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
-
-
-
-
