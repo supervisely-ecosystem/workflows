@@ -96,6 +96,6 @@ jobs:
             --local context=${{ github.workspace }} \
             --local dockerfile=$(dirname ${{ inputs.dockerfile_path }}) \
             --opt filename=$(basename ${{ inputs.dockerfile_path }}) \
-            --output type=image,name=name=docker.io/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},name=docker.io/supervisely/${{ env.IMAGE_NAME }}:latest,push=true  \
+            --output type=image,name=name=docker.io/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
