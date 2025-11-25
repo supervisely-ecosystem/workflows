@@ -64,13 +64,13 @@ on:
 
 jobs:
   Supervisely-Release:
-    runs-on: ubuntu-24.04
+    runs-on: gha-runner-supervisely-ecosystem
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
@@ -81,7 +81,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y skopeo
+          sudo apt-get install -y libgl1 libmagic1 skopeo
           python -m venv venv
           . venv/bin/activate
           python -m pip install --upgrade pip

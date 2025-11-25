@@ -1,28 +1,28 @@
-name: Build and Push Docker Image 
+name: Build and Push Docker Image
 run-name: Docker Image for ${{ github.repository }}
-on: 
+on:
   workflow_call:
     inputs:
       tag_version:
-        description: 'Docker Image Tag (without "v")'     
+        description: 'Docker Image Tag (without "v")'
         required: true
         type: string
-        default: ''
+        default: ""
       dockerfile_path:
-        description: 'Path to Dockerfile'
+        description: "Path to Dockerfile"
         required: true
         type: string
-        default: 'docker/Dockerfile'
+        default: "docker/Dockerfile"
       image_name:
-        description: 'Docker Image Name (optional)'
+        description: "Docker Image Name (optional)"
         required: false
         type: string
-        default: ''
+        default: ""
       sdk_version:
-        description: 'Supervisely SDK version (optional) - only needed if SDK is installed from branch'
+        description: "Supervisely SDK version (optional) - only needed if SDK is installed from branch"
         required: false
         type: string
-        default: ''
+        default: ""
       latest_tag:
         description: 'Also tag image as "latest"'
         required: false
@@ -36,7 +36,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-supervisely-ecosystem
     steps:
       - name: Info
         run: |
@@ -52,34 +52,11 @@ jobs:
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Dockerfile path: ${{ inputs.dockerfile_path }}"
 
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-          
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
@@ -87,7 +64,7 @@ jobs:
       - name: Delete .git folder
         run: |
           rm -rf .git
-      
+
       - name: Set tags
         id: tags
         run: |
@@ -97,37 +74,28 @@ jobs:
           fi
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
-      - name: Build
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          load: true
-          file: ${{ inputs.dockerfile_path }}
-          tags: ${{ steps.tags.outputs.tags }}
-    
-      - name: Extract SDK version
+      - name: Get SDK version
         run: |
           if [ -n "${{ inputs.sdk_version }}" ]; then
-            echo "${{ inputs.sdk_version }}" > sdk_version.txt
+            sed -i.bak -E '/LABEL (python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=/d' "${{ inputs.dockerfile_path }}"
+            echo "LABEL supervisely-sdk-version=${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
+            echo "Supervisely SDK version: ${{ inputs.sdk_version }}"
           else
-            docker run --rm $IMAGE_NAME:${{ inputs.tag_version }} pip show supervisely 2>/dev/null | awk '/^Version:/ {print $2}' > sdk_version.txt
+            SDK_VERSION=$(grep -E '^LABEL +(python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=' "${{ inputs.dockerfile_path }}" | awk -F= '{print $2}' | tr -d '\"')
+            if [ -z "$SDK_VERSION" ]; then
+              echo "[ERROR] Python SDK version LABEL not found in Dockerfile! You should specify the SDK version as LABEL in Dockerfile or input parameter." >&2
+              exit 1
+            fi
+            echo "Supervisely SDK version: $SDK_VERSION"
           fi
-        
-      - name: Add SDK version label
-        run: |
-          SDK_VERSION=$(cat sdk_version.txt)
-          printf "FROM %s:${{ inputs.tag_version }}\nLABEL supervisely-sdk-version=\"%s\"\n" "$IMAGE_NAME" "$SDK_VERSION" > Dockerfile.label
-          docker build -f Dockerfile.label -t $IMAGE_NAME:${{ inputs.tag_version }} .
-    
-      - name: Inspect Image
-        run: |
-          docker inspect $IMAGE_NAME:${{ inputs.tag_version }}
 
-      - name: Push
+      - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}
         run: |
-          docker push $IMAGE_NAME:${{ inputs.tag_version }}
-
-      - name: Push latest tag
-        if: ${{ inputs.latest_tag }}
-        run: |
-          docker push $IMAGE_NAME:latest
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=$(dirname ${{ inputs.dockerfile_path }}) \
+            --opt filename=$(basename ${{ inputs.dockerfile_path }}) \
+            --output type=image,name=name=docker.io/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
+            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
