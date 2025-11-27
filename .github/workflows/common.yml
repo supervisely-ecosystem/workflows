@@ -64,7 +64,7 @@ on:
 
 jobs:
   Supervisely-Release:
-    runs-on: [gha-runner-supervisely-ecosystem, gha-runner-supervisely]
+    runs-on: gha-runner-supervisely-ecosystem
     steps:
       - uses: actions/checkout@v6
         with:
@@ -116,4 +116,5 @@ jobs:
       SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
+
 
