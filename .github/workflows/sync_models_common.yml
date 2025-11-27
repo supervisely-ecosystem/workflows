@@ -20,7 +20,7 @@ on:
 
 jobs:
   release-models:
-    runs-on: gha-runner-supervisely-ecosystem
+    runs-on: [gha-runner-supervisely-ecosystem, gha-runner-supervisely]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
