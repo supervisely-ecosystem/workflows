@@ -66,14 +66,18 @@ jobs:
   Supervisely-Release:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
+      - name: Checkout repo
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
+
+      - name: Checkout workflows repo
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          ref: ${{ 'vars-envs' }}
 
       - name: Install dependencies
         run: |
