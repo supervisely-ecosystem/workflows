@@ -77,7 +77,6 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-          ref: ${{ inputs.COMMIT_SHA }}
 
       - name: Install dependencies
         run: |
