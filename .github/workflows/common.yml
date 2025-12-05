@@ -77,6 +77,7 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          ref: ${{ 'vars-envs' }}
 
       - name: Install dependencies
         run: |
