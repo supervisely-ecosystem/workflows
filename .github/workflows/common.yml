@@ -74,10 +74,7 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -93,10 +90,10 @@ jobs:
         env:
           DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
           PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
-          PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
-          GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+          DEV_API_TOKEN: "${{ env.SUPERVISELY_DEV_API_TOKEN }}"
+          PRIVATE_DEV_API_TOKEN: "${{ env.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
+          PROD_API_TOKEN: "${{ env.SUPERVISELY_PROD_API_TOKEN }}"
+          GH_ACCESS_TOKEN: "${{ env.GH_ACCESS_TOKEN }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
@@ -111,10 +108,8 @@ jobs:
     if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
     uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
     secrets:
-      API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+      API_TOKEN: "${{ env.SUPERVISELY_PROD_API_TOKEN }}"
     with:
-      SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+      SERVER_ADDRESS: "${{ env.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
-
-

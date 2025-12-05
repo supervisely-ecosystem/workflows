@@ -19,7 +19,6 @@ jobs:
       MODELS_PATH: ${{ github.event.inputs.models_path }}
       SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
       FRAMEWORK: ${{ github.event.inputs.framework }}
-      SERVER_ADDRESS: ${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}
+      SERVER_ADDRESS: ${{ env.SUPERVISELY_PROD_SERVER_ADDRESS }}
     secrets:
-      API_TOKEN: ${{ secrets.SUPERVISELY_PROD_API_TOKEN }}
-
+      API_TOKEN: ${{ env.SUPERVISELY_PROD_API_TOKEN }}

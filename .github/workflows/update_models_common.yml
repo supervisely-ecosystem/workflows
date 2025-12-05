@@ -33,11 +33,6 @@ jobs:
           repository: supervisely-ecosystem/workflows
           path: workflow
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -52,7 +47,7 @@ jobs:
           python workflow/update_models.py
         env:
           SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
+          API_TOKEN: ${{ env.API_TOKEN }}
           MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
           SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
