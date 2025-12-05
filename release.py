@@ -964,9 +964,9 @@ def run(
 def main():
     dev_server_address = os.getenv("DEV_SERVER_ADDRESS", None)
     prod_server_address = os.getenv("PROD_SERVER_ADDRESS", None)
-    dev_api_token = os.getenv("DEV_API_TOKEN", None)
-    private_dev_api_token = os.getenv("PRIVATE_DEV_API_TOKEN", None)
-    prod_api_token = os.getenv("PROD_API_TOKEN", None)
+    dev_api_token = os.getenv("SUPERVISELY_DEV_API_TOKEN", None)
+    private_dev_api_token = os.getenv("SUPERVISELY_PRIVATE_DEV_API_TOKEN", None)
+    prod_api_token = os.getenv("SUPERVISELY_PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
@@ -987,9 +987,9 @@ def main():
         except Exception:
             return "<error>"
 
-    print(f"DEV_API_TOKEN: {_token_info(dev_api_token)}", file=sys.stderr, flush=True)
-    print(f"PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}", file=sys.stderr, flush=True)
-    print(f"PROD_API_TOKEN: {_token_info(prod_api_token)}", file=sys.stderr, flush=True)
+    print(f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}", file=sys.stderr, flush=True)
+    print(f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}", file=sys.stderr, flush=True)
+    print(f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}", file=sys.stderr, flush=True)
     print(f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}", file=sys.stderr, flush=True)
 
     release_type = os.getenv("RELEASE_TYPE", None)
