@@ -83,7 +83,7 @@ jobs:
           printf '%s=%s\n' "private_dev_token" "$SUPERVISELY_PRIVATE_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_token" "$SUPERVISELY_PROD_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_address" "$SUPERVISELY_PROD_SERVER_ADDRESS" >> "$GITHUB_OUTPUT"
-          printf '%s=%s\n' "gh_access_token" "$GH_ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "gh_access_token" "$SUPERVISELY_GITHUB_ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
 
   Supervisely-Release:
     needs: prepare
