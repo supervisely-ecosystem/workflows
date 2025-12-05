@@ -27,11 +27,11 @@ on:
       SKIP_INSTANCE_VERSION_VALIDATION:
         required: false
         type: boolean
-        default: false
+        default: true
       SKIP_IMAGE_VALIDATION:
         required: false
         type: boolean
-        default: false
+        default: true
       ARCHIVE_ONLY_CONFIG:
         required: false
         type: boolean
