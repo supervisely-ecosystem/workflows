@@ -59,6 +59,8 @@ on:
         required: true
       SUPERVISELY_PROD_API_TOKEN:
         required: true
+      GH_ACCESS_TOKEN:
+        required: true
 
 jobs:
   prepare:
