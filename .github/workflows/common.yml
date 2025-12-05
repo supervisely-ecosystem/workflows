@@ -63,7 +63,31 @@ on:
         required: true
 
 jobs:
+  prepare:
+    name: Prepare env outputs
+    runs-on: gha-runner-supervisely-ecosystem
+    outputs:
+      dev_token: ${{ steps.gather.outputs.dev_token }}
+      private_dev_token: ${{ steps.gather.outputs.private_dev_token }}
+      prod_token: ${{ steps.gather.outputs.prod_token }}
+      github_token: ${{ steps.gather.outputs.github_token }}
+      dev_address: ${{ steps.gather.outputs.dev_address }}
+      prod_address: ${{ steps.gather.outputs.prod_address }}
+    steps:
+      - name: Gather runner env
+        id: gather
+        shell: bash
+        run: |
+          # ensure we don't print secrets to logs
+          set +x
+          printf '%s=%s\n' "dev_token" "$SUPERVISELY_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "private_dev_token" "$SUPERVISELY_PRIVATE_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "prod_token" "$SUPERVISELY_PROD_API_TOKEN" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "github_token" "$GITHUB_TOKEN" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "prod_address" "$SUPERVISELY_PROD_SERVER_ADDRESS" >> "$GITHUB_OUTPUT"
+
   Supervisely-Release:
+    needs: prepare
     runs-on: gha-runner-supervisely-ecosystem
     steps:
       - uses: actions/checkout@v6
@@ -90,10 +114,10 @@ jobs:
         env:
           DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
           PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          DEV_API_TOKEN: "${{ env.SUPERVISELY_DEV_API_TOKEN }}"
-          PRIVATE_DEV_API_TOKEN: "${{ env.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          PROD_API_TOKEN: "${{ env.SUPERVISELY_PROD_API_TOKEN }}"
-          GH_ACCESS_TOKEN: "${{ env.GH_ACCESS_TOKEN }}"
+          DEV_API_TOKEN: "${{ needs.prepare.dev_token }}"
+          PRIVATE_DEV_API_TOKEN: "${{ needs.prepare.private_dev_token }}"
+          PROD_API_TOKEN: "${{ needs.prepare.prod_token }}"
+          GH_ACCESS_TOKEN: "${{ needs.prepare.github_token }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
@@ -104,12 +128,14 @@ jobs:
           ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
 
   Models-release:
-    needs: Supervisely-Release
+    needs:
+      - Supervisely-Release
+      - prepare
     if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
-    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
+    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@vars-envs
     secrets:
-      API_TOKEN: "${{ env.SUPERVISELY_PROD_API_TOKEN }}"
+      API_TOKEN: "${{ needs.prepare.prod_token }}"
     with:
-      SERVER_ADDRESS: "${{ env.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+      SERVER_ADDRESS: "${{ needs.prepare.prod_address }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
