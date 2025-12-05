@@ -70,8 +70,8 @@ jobs:
       dev_token: ${{ steps.gather.outputs.dev_token }}
       private_dev_token: ${{ steps.gather.outputs.private_dev_token }}
       prod_token: ${{ steps.gather.outputs.prod_token }}
-      dev_address: ${{ steps.gather.outputs.dev_address }}
       prod_address: ${{ steps.gather.outputs.prod_address }}
+      gh_access_token: ${{ steps.gather.outputs.gh_access_token }}
     steps:
       - name: Gather runner env
         id: gather
@@ -83,6 +83,7 @@ jobs:
           printf '%s=%s\n' "private_dev_token" "$SUPERVISELY_PRIVATE_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_token" "$SUPERVISELY_PROD_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_address" "$SUPERVISELY_PROD_SERVER_ADDRESS" >> "$GITHUB_OUTPUT"
+          printf '%s=%s\n' "gh_access_token" "$GH_ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
 
   Supervisely-Release:
     needs: prepare
@@ -115,7 +116,7 @@ jobs:
           DEV_API_TOKEN: "${{ needs.prepare.dev_token }}"
           PRIVATE_DEV_API_TOKEN: "${{ needs.prepare.private_dev_token }}"
           PROD_API_TOKEN: "${{ needs.prepare.prod_token }}"
-          GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+          GH_ACCESS_TOKEN: "${{ needs.prepare.gh_access_token }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
