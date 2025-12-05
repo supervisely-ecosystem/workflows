@@ -59,8 +59,6 @@ on:
         required: true
       SUPERVISELY_PROD_API_TOKEN:
         required: true
-      GH_ACCESS_TOKEN:
-        required: true
 
 jobs:
   prepare:
@@ -82,6 +80,14 @@ jobs:
           printf '%s=%s\n' "private_dev_token" "$SUPERVISELY_PRIVATE_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_token" "$SUPERVISELY_PROD_API_TOKEN" >> "$GITHUB_OUTPUT"
           printf '%s=%s\n' "prod_address" "$SUPERVISELY_PROD_SERVER_ADDRESS" >> "$GITHUB_OUTPUT"
+
+      - name: Validate GH access token
+        run: |
+          if [ -z "${SUPERVISELY_GITHUB_ACCESS_TOKEN:-}" ]; then
+            echo "::error::Required environment variable SUPERVISELY_GITHUB_ACCESS_TOKEN is not set or empty."
+            echo "Set it as a repository/organization secret or pass it into the workflow environment."
+            exit 1
+          fi
 
   Supervisely-Release:
     needs: prepare
