@@ -63,110 +63,7 @@ on:
         required: true
 
 jobs:
-  prepare:
-    name: Prepare env outputs
-    runs-on: gha-runner-supervisely-ecosystem
-    outputs:
-      dev_token: ${{ steps.gather.outputs.dev_token }}
-      private_dev_token: ${{ steps.gather.outputs.private_dev_token }}
-      prod_token: ${{ steps.gather.outputs.prod_token }}
-      prod_address: ${{ steps.gather.outputs.prod_address }}
-    steps:
-      - name: Gather runner env
-        id: gather
-        shell: bash
-        run: |
-          # ensure we don't print secrets to logs
-          set +x
-          printf '%s=%s\n' "dev_token" "$SUPERVISELY_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
-          printf '%s=%s\n' "private_dev_token" "$SUPERVISELY_PRIVATE_DEV_API_TOKEN" >> "$GITHUB_OUTPUT"
-          printf '%s=%s\n' "prod_token" "$SUPERVISELY_PROD_API_TOKEN" >> "$GITHUB_OUTPUT"
-          printf '%s=%s\n' "prod_address" "$SUPERVISELY_PROD_SERVER_ADDRESS" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure outputs are set (debug)
-        run: |
-          # Write outputs again to be explicit and show the outputs file for debugging
-          echo "dev_token=${SUPERVISELY_DEV_API_TOKEN}" >> "$GITHUB_OUTPUT"
-          echo "private_dev_token=${SUPERVISELY_PRIVATE_DEV_API_TOKEN}" >> "$GITHUB_OUTPUT"
-          echo "prod_token=${SUPERVISELY_PROD_API_TOKEN}" >> "$GITHUB_OUTPUT"
-          echo "prod_address=${SUPERVISELY_PROD_SERVER_ADDRESS}" >> "$GITHUB_OUTPUT"
-          echo "--- GITHUB_OUTPUT FILE ---"
-          if [ -f "$GITHUB_OUTPUT" ]; then
-            sed -n '1,200p' "$GITHUB_OUTPUT"
-          else
-            echo "(no GITHUB_OUTPUT file found)"
-          fi
-
-      - name: Validate GH access token
-        run: |
-          # Accept either GH_ACCESS_TOKEN (declared secret) or SUPERVISELY_GITHUB_ACCESS_TOKEN (legacy env)
-          if [ -z "${GH_ACCESS_TOKEN:-}${SUPERVISELY_GITHUB_ACCESS_TOKEN:-}" ]; then
-            echo "::error::Required GitHub access token is not set (GH_ACCESS_TOKEN or SUPERVISELY_GITHUB_ACCESS_TOKEN)."
-            echo "Pass it as the 'GH_ACCESS_TOKEN' secret when calling this reusable workflow."
-            exit 1
-          fi
-
-      - name: Dump environment (truncated values)
-        run: |
-          echo "--- ENVIRONMENT (truncated) ---"
-          # Print all environment variables, truncating values so full secrets are not exposed.
-          # For values longer than 12 chars show first 6 + '...' + last 4 chars.
-          env | sort | while IFS='=' read -r K V; do
-            if [ -z "$V" ]; then
-              echo "$K="
-              continue
-            fi
-            len=${#V}
-            if [ "$len" -gt 12 ]; then
-              prefix=${V:0:6}
-              suffix=${V: -4}
-              echo "$K=${prefix}...${suffix}"
-            else
-              echo "$K=$V"
-            fi
-          done
-          echo "--- END ---"
-
-          echo "--- WORKFLOW INPUTS (truncated) ---"
-          truncate() {
-            V="$1"
-            if [ -z "$V" ]; then
-              echo ""
-              return
-            fi
-            len=${#V}
-            if [ "$len" -gt 12 ]; then
-              echo "${V:0:6}...${V: -4}"
-            else
-              echo "$V"
-            fi
-          }
-
-          echo "SUPERVISELY_SERVER_ADDRESS=$(truncate "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}")"
-          echo "SUPERVISELY_PROD_SERVER_ADDRESS=$(truncate "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}")"
-          echo "SLUG=$(truncate "${{ inputs.SLUG }}")"
-          echo "RELEASE_VERSION=$(truncate "${{ inputs.RELEASE_VERSION }}")"
-          echo "RELEASE_DESCRIPTION=$(truncate "${{ inputs.RELEASE_DESCRIPTION }}")"
-          echo "SUBAPP_PATHS=$(truncate "${{ inputs.SUBAPP_PATHS }}")"
-          echo "RELEASE_TYPE=$(truncate "${{ inputs.RELEASE_TYPE }}")"
-          echo "SKIP_INSTANCE_VERSION_VALIDATION=$(truncate "${{ inputs.SKIP_INSTANCE_VERSION_VALIDATION }}")"
-          echo "SKIP_IMAGE_VALIDATION=$(truncate "${{ inputs.SKIP_IMAGE_VALIDATION }}")"
-          echo "ARCHIVE_ONLY_CONFIG=$(truncate "${{ inputs.ARCHIVE_ONLY_CONFIG }}")"
-          echo "COMMIT_SHA=$(truncate "${{ inputs.COMMIT_SHA }}")"
-          echo "MODELS_PATH=$(truncate "${{ inputs.MODELS_PATH }}")"
-          echo "FRAMEWORK=$(truncate "${{ inputs.FRAMEWORK }}")"
-          echo "RELEASE_MODELS=$(truncate "${{ inputs.RELEASE_MODELS }}")"
-          echo "--- END INPUTS ---"
-          echo "--- SECRETS (truncated) ---"
-          echo "SUPERVISELY_DEV_API_TOKEN=$(truncate "${SUPERVISELY_DEV_API_TOKEN:-}")"
-          echo "SUPERVISELY_PRIVATE_DEV_API_TOKEN=$(truncate "${SUPERVISELY_PRIVATE_DEV_API_TOKEN:-}")"
-          echo "SUPERVISELY_PROD_API_TOKEN=$(truncate "${SUPERVISELY_PROD_API_TOKEN:-}")"
-          echo "SUPERVISELY_GITHUB_ACCESS_TOKEN=$(truncate "${SUPERVISELY_GITHUB_ACCESS_TOKEN:-}")"
-          echo "GH_ACCESS_TOKEN=$(truncate "${GH_ACCESS_TOKEN:-}")"
-          echo "--- END SECRETS ---"
-
   Supervisely-Release:
-    needs: prepare
     runs-on: gha-runner-supervisely-ecosystem
     steps:
       - uses: actions/checkout@v6
@@ -177,29 +74,6 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-
-      - name: Dump needs.prepare outputs (truncated)
-        if: always()
-        run: |
-          echo "--- needs.prepare outputs (truncated) ---"
-          truncate() {
-            V="$1"
-            if [ -z "$V" ]; then
-              echo ""
-              return
-            fi
-            len=${#V}
-            if [ "$len" -gt 12 ]; then
-              echo "${V:0:6}...${V: -4}"
-            else
-              echo "$V"
-            fi
-          }
-          echo "dev_token=$(truncate "${{ needs.prepare.dev_token }}")"
-          echo "private_dev_token=$(truncate "${{ needs.prepare.private_dev_token }}")"
-          echo "prod_token=$(truncate "${{ needs.prepare.prod_token }}")"
-          echo "prod_address=$(truncate "${{ needs.prepare.prod_address }}")"
-          echo "--- END needs ---"
 
       - name: Install dependencies
         run: |
@@ -216,10 +90,6 @@ jobs:
         env:
           DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
           PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          DEV_API_TOKEN: "${{ env.SUPERVISELY_DEV_API_TOKEN }}"
-          PRIVATE_DEV_API_TOKEN: "${{ env.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          PROD_API_TOKEN: "${{ env.SUPERVISELY_PROD_API_TOKEN }}"
-          SUPERVISELY_GITHUB_ACCESS_TOKEN: "${{ env.SUPERVISELY_GITHUB_ACCESS_TOKEN }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
@@ -232,11 +102,10 @@ jobs:
   Models-release:
     needs:
       - Supervisely-Release
-      - prepare
     if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
     uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@vars-envs
     secrets:
-      API_TOKEN: "${{ needs.prepare.prod_token }}"
+      API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
     with:
       SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS  }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"

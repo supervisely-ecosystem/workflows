@@ -974,6 +974,10 @@ def main():
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
     archive_only_config = archive_only_config in [1, "1", "true", "True", True]
+    print(f"DEV_API_TOKEN: {dev_api_token}")
+    print(f"PRIVATE_DEV_API_TOKEN: {private_dev_api_token}")
+    print(f"PROD_API_TOKEN: {prod_api_token}")
+    print(f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {github_access_token}")
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
