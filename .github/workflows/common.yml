@@ -101,6 +101,7 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          ref: ${{ inputs.COMMIT_SHA }}
 
       - name: Install dependencies
         run: |
@@ -120,7 +121,7 @@ jobs:
           DEV_API_TOKEN: "${{ needs.prepare.dev_token }}"
           PRIVATE_DEV_API_TOKEN: "${{ needs.prepare.private_dev_token }}"
           PROD_API_TOKEN: "${{ needs.prepare.prod_token }}"
-          GH_ACCESS_TOKEN: "${{ env.SUPERVISELY_GITHUB_ACCESS_TOKEN }}"
+          SUPERVISELY_GITHUB_ACCESS_TOKEN: "${{ env.SUPERVISELY_GITHUB_ACCESS_TOKEN }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
