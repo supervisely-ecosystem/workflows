@@ -1,5 +1,6 @@
 name: Build and Push Docker Image
 run-name: Docker Image for ${{ github.repository }}
+
 on:
   workflow_call:
     inputs:
@@ -40,6 +41,8 @@ jobs:
     steps:
       - name: Info
         run: |
+          set -euo pipefail
+
           IMAGE_NAME=${{ inputs.image_name }}
           if [ -z "$IMAGE_NAME" ]; then
             IMAGE_NAME=${GITHUB_REPOSITORY#*/}
@@ -47,8 +50,20 @@ jobs:
           if [[ "$IMAGE_NAME" != supervisely/* ]]; then
             IMAGE_NAME="supervisely/$IMAGE_NAME"
           fi
+
+          # Docker Image name
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+
+          # Cache key (supervisely/foo -> supervisely_foo)
+          CACHE_KEY="${IMAGE_NAME//\//_}"
+          echo "CACHE_KEY=$CACHE_KEY" >> $GITHUB_ENV
+
+          # Local cache dir
+          CACHE_DIR="$HOME/.cache/buildkit/${CACHE_KEY}"
+          echo "CACHE_DIR=$CACHE_DIR" >> $GITHUB_ENV
+
           echo "Image name: $IMAGE_NAME"
+          echo "Cache dir: $CACHE_DIR"
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Dockerfile path: ${{ inputs.dockerfile_path }}"
 
@@ -65,6 +80,11 @@ jobs:
         run: |
           rm -rf .git
 
+      - name: DockerHub login
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
       - name: Set tags
         id: tags
         run: |
@@ -76,6 +96,7 @@ jobs:
 
       - name: Get SDK version
         run: |
+          set -euo pipefail
           if [ -n "${{ inputs.sdk_version }}" ]; then
             sed -i.bak -E '/LABEL (python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=/d' "${{ inputs.dockerfile_path }}"
             echo "LABEL supervisely-sdk-version=${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
@@ -89,23 +110,31 @@ jobs:
             echo "Supervisely SDK version: $SDK_VERSION"
           fi
 
+      - name: Prepare local BuildKit cache dir
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ env.CACHE_DIR }}"
+
       - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ inputs.tag_version }}
         run: |
+          set -euo pipefail
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=$(dirname ${{ inputs.dockerfile_path }}) \
             --opt filename=$(basename ${{ inputs.dockerfile_path }}) \
-            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},push=true  \
-            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+            --import-cache type=local,src=${{ env.CACHE_DIR }} \
+            --export-cache type=local,dest=${{ env.CACHE_DIR }},mode=max \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ inputs.tag_version }},push=true
 
       - name: Build Docker Image ${{ env.IMAGE_NAME }}:latest
+        if: inputs.latest_tag
         run: |
+          set -euo pipefail
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=$(dirname ${{ inputs.dockerfile_path }}) \
             --opt filename=$(basename ${{ inputs.dockerfile_path }}) \
-            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+            --import-cache type=local,src=${{ env.CACHE_DIR }} \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true
