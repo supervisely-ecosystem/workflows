@@ -22,16 +22,17 @@ jobs:
   release-models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
-      - name: Checkout repository
+      - name: Checkout workflows repository
         uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+  
+      - name: Checkout repository 
+        uses: actions/checkout@v6
         with:
-          python-version: "3.12"
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
