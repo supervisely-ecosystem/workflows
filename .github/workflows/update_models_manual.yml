@@ -2,15 +2,18 @@ name: Update Models Manual
 on:
   workflow_dispatch:
     inputs:
-      models_path:
-        type: string
-        required: false
-      seg_models_path:
-        type: string
-        required: false
       framework:
+        description: "Framework of the models to update (e.g., YOLO)"
         type: string
-        required: true
+        required: false
+      models_path:
+        description: "Path to the file models.json (e.g., supervisely_integration/models.json for YOLO)"
+        type: string
+        required: false
+      # seg_models_path:
+      #   description: "[Legacy] Path to the file seg_models_data.json (e.g., models/seg_models.json for YOLOv8)"
+      #   type: string
+      #   required: false
 
 jobs:
   update-models:
@@ -22,4 +25,3 @@ jobs:
       SERVER_ADDRESS: ${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}
     secrets:
       API_TOKEN: ${{ secrets.SUPERVISELY_PROD_API_TOKEN }}
-

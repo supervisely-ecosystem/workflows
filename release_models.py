@@ -57,7 +57,6 @@ def get_value(data: dict, keys: Union[str, List[str]]):
         return value
 
 
-
 def api_call(api_method, endpoint, params=None, data=None, json=None):
     call_function = requests.post if api_method == "post" else requests.get
     url = server_address.rstrip("/") + "/public/api/v3/" + endpoint.lstrip("/")
@@ -73,8 +72,10 @@ def api_call(api_method, endpoint, params=None, data=None, json=None):
         raise
     return r.json()
 
+
 def get(method, params=None, data=None, json=None):
     return api_call("get", method, params=params, data=data, json=json)
+
 
 def post(method, params=None, data=None, json=None):
     return api_call("post", method, params=params, data=data, json=json)
@@ -102,7 +103,9 @@ def get_list_all_pages(method, data):
 
         if len(results) != total:
             raise RuntimeError(
-                "Method {!r}: error during pagination, some items are missed".format(method)
+                "Method {!r}: error during pagination, some items are missed".format(
+                    method
+                )
             )
 
     return results
@@ -145,11 +148,19 @@ def update_model(model_id: int, parameters: dict):
 
 def find_serve_and_train_modules():
     try:
-        modules = api.app.get_list_ecosystem_modules(categories=[f"framework:{framework}"], categories_operation="and")
-        serve_module = next((m for m in modules if "serve" in m["config"]["categories"]))
-        train_module = next((m for m in modules if "train" in m["config"]["categories"]))
+        modules = api.app.get_list_ecosystem_modules(
+            categories=[f"framework:{framework}"], categories_operation="and"
+        )
+        serve_module = next(
+            (m for m in modules if "serve" in m["config"]["categories"])
+        )
+        train_module = next(
+            (m for m in modules if "train" in m["config"]["categories"])
+        )
     except StopIteration:
-        raise RuntimeError(f"Could not find serve or train modules for framework {framework}")
+        raise RuntimeError(
+            f"Could not find serve or train modules for framework {framework}"
+        )
     return serve_module, train_module
 
 
@@ -179,6 +190,9 @@ def read_models():
         model["framework"] = framework
         model["serve_module_id"] = serve["id"]
         model["train_module_id"] = train["id"]
+        evaluation = get_evaluation(model)
+        if evaluation:
+            model["evaluation"] = evaluation
     return models
 
 
@@ -192,7 +206,28 @@ def get_model_name(model: Dict) -> str:
     return
 
 
+def get_evaluation(model: Dict) -> Dict:
+    for key in ["mAP", "AP_val", "mAP (mask)"]:
+        if key in model:
+            return {"metrics": {"mAP": model[key], "primaryKey": "mAP"}}
+    return None
+
+
 def main():
+    """Mode path and framework could be obtained automatically from configs of the apps
+
+    Example of config file:
+    ```
+        {
+            "framework": {
+                "name": "SparseInst"
+            },
+            "files": {
+                "models": "models/models.json"
+            }
+        }
+    ```
+    """
     if models_path == "" or framework == "":
         print("Models path or framework is not set. Models will not be added.")
         sys.exit(0)
@@ -230,7 +265,7 @@ def main():
         except Exception as e:
             success = False
             print(f"Failed to add model {model_name}: {e}")
-    
+
     if success:
         print("All models added successfully.")
     else:

@@ -26,16 +26,19 @@ jobs:
       RELEASE_WITH_SLUG: 1
       CHECK_PREV_RELEASES: 1
       SUBAPP_PATHS: "__ROOT_APP__, subapp"
-
 ```
 
 SUBAPP_PATHS - list of subapp paths, separated by comma. If you don't have subapps, just leave `__ROOT_APP__`.
 examples:
+
 1. Subapps located in /train and /serve folders
+
 ```yaml
 SUBAPP_PATHS: "train, serve"
 ```
+
 2. Main app only
+
 ```yaml
 SUBAPP_PATHS: "__ROOT_APP__"
 ```
@@ -72,11 +75,54 @@ jobs:
 
 SUBAPP_PATHS - list of subapp paths, separated by comma. If you don't have subapps, just leave `__ROOT_APP__`.
 examples:
+
 1. Subapps located in /train and /serve folders
+
 ```yaml
 SUBAPP_PATHS: "train, serve"
 ```
+
 2. Main app only
+
 ```yaml
 SUBAPP_PATHS: "__ROOT_APP__"
 ```
+
+# Models Release and Updates
+## Configuration Discovery Rules
+
+For neural network applications, the workflow automatically determines **framework** and **models file path** using the following rules:
+
+### 1. Environment Variables Priority
+
+If `FRAMEWORK` and `MODELS_PATH` variables are already set in workflow inputs, they are used without searching for configuration.
+
+### 2. Train Folder Search
+
+If variables are not set, the script searches for the `train` folder in the following order:
+
+1. **Path**: `supervisely_integration/train/`
+2. **Path**: `train/` (in repository root)
+
+### 3. Parsing config.json
+
+The `config.json` file must exist in the found `train` folder with the following structure:
+
+```json
+{
+  "framework": {
+    "name": "SparseInst"
+  },
+  "files": {
+    "models": "models/models.json"
+  }
+}
+```
+
+Extracted fields:
+- `framework.name` → environment variable `FRAMEWORK`
+- `files.models` → environment variable `MODELS_PATH`
+
+### 4. Usage in Workflow
+
+The extracted values automatically become available in subsequent workflow steps via environment variables.
