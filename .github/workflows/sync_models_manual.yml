@@ -19,6 +19,3 @@ jobs:
       MODELS_PATH: ${{ github.event.inputs.models_path }}
       DET_MODELS_PATH: ${{ github.event.inputs.models_path }}
       FRAMEWORK: ${{ github.event.inputs.framework }}
-      SERVER_ADDRESS: ${{ env.SUPERVISELY_PROD_SERVER_ADDRESS }}
-    secrets:
-      API_TOKEN: ${{ env.SUPERVISELY_PROD_API_TOKEN }}

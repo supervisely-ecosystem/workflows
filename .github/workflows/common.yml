@@ -3,12 +3,6 @@ run-name: Supervisely ${{ github.repository }} app release
 on:
   workflow_call:
     inputs:
-      SUPERVISELY_SERVER_ADDRESS:
-        required: true
-        type: string
-      SUPERVISELY_PROD_SERVER_ADDRESS:
-        required: true
-        type: string
       SLUG:
         required: true
         type: string
@@ -27,11 +21,11 @@ on:
       SKIP_INSTANCE_VERSION_VALIDATION:
         required: false
         type: boolean
-        default: true
+        default: false
       SKIP_IMAGE_VALIDATION:
         required: false
         type: boolean
-        default: true
+        default: false
       ARCHIVE_ONLY_CONFIG:
         required: false
         type: boolean
@@ -66,23 +60,12 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-          ref: ${{ 'vars-envs' }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1 libmagic1 skopeo
-          python -m venv venv
-          . venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r ./workflow/requirements.txt
       - name: Supervisely Release
         run: |
-          . venv/bin/activate
+          . release_venv/bin/activate
           python ./workflow/release.py
         env:
-          DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
-          PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
@@ -92,14 +75,11 @@ jobs:
           SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
           ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
 
-  # Models-release:
-  #   needs:
-  #     - Supervisely-Release
-  #   if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
-  #   uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@vars-envs
-  #   secrets:
-  #     API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
-  #   with:
-  #     SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS  }}"
-  #     MODELS_PATH: "${{ inputs.MODELS_PATH }}"
-  #     FRAMEWORK: "${{ inputs.FRAMEWORK }}"
+  Models-release:
+    needs:
+      - Supervisely-Release
+    if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
+    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
+    with:
+      MODELS_PATH: "${{ inputs.MODELS_PATH }}"
+      FRAMEWORK: "${{ inputs.FRAMEWORK }}"

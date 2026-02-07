@@ -1057,8 +1057,8 @@ def run(
 
 
 def main():
-    dev_server_address = os.getenv("DEV_SERVER_ADDRESS", None)
-    prod_server_address = os.getenv("PROD_SERVER_ADDRESS", None)
+    dev_server_address = os.getenv("SUPERVISELY_SERVER_ADDRESS", None)
+    prod_server_address = os.getenv("SUPERVISELY_PROD_SERVER_ADDRESS", None)
     dev_api_token = os.getenv("SUPERVISELY_DEV_API_TOKEN", None)
     private_dev_api_token = os.getenv("SUPERVISELY_PRIVATE_DEV_API_TOKEN", None)
     prod_api_token = os.getenv("SUPERVISELY_PROD_API_TOKEN", None)
