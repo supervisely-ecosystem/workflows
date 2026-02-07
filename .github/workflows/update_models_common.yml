@@ -14,12 +14,6 @@ on:
       FRAMEWORK:
         type: string
         required: true
-      SERVER_ADDRESS:
-        type: string
-        required: true
-    secrets:
-      API_TOKEN:
-        required: true
 
 jobs:
   update-models:
@@ -47,8 +41,6 @@ jobs:
           . release_venv/bin/activate
           python workflow/update_models.py
         env:
-          SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
           MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
           SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}

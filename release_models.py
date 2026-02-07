@@ -11,8 +11,8 @@ from supervisely.api.module_api import ApiField
 dotenv.load_dotenv(os.path.expanduser("~/supervisely.env"))
 
 api = Api()
-server_address = os.environ["SERVER_ADDRESS"]
-api_token = os.environ["API_TOKEN"]
+server_address = os.environ["SUPERVISELY_PROD_SERVER_ADDRESS"]
+api_token = os.environ["SUPERVISELY_PROD_API_TOKEN"]
 models_path = os.environ.get("MODELS_PATH", "")
 det_models_path = os.environ.get("DET_MODELS_PATH", "")
 seg_models_path = os.environ.get("SEG_MODELS_PATH", "")

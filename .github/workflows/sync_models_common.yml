@@ -11,12 +11,6 @@ on:
       FRAMEWORK:
         type: string
         required: true
-      SERVER_ADDRESS:
-        type: string
-        required: true
-    secrets:
-      API_TOKEN:
-        required: true
 
 jobs:
   release-models:
@@ -48,8 +42,6 @@ jobs:
           . release_venv/bin/activate
           python workflow/release_models.py
         env:
-          SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          MODELS_PATH: ${{ steps.get_inputs.outputs.MODELS_PATH }}
+          MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
           FRAMEWORK: ${{ steps.get_inputs.outputs.FRAMEWORK }}
