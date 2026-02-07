@@ -190,6 +190,9 @@ def read_models():
         model["framework"] = framework
         model["serve_module_id"] = serve["id"]
         model["train_module_id"] = train["id"]
+        evaluation = get_evaluation(model)
+        if evaluation:
+            model["evaluation"] = evaluation
     return models
 
 
@@ -203,7 +206,28 @@ def get_model_name(model: Dict) -> str:
     return
 
 
+def get_evaluation(model: Dict) -> Dict:
+    for key in ["mAP", "AP_val", "mAP (mask)"]:
+        if key in model:
+            return {"metrics": {"mAP": model[key], "primaryKey": "mAP"}}
+    return None
+
+
 def main():
+    """Mode path and framework could be obtained automatically from configs of the apps
+
+    Example of config file:
+    ```
+        {
+            "framework": {
+                "name": "SparseInst"
+            },
+            "files": {
+                "models": "models/models.json"
+            }
+        }
+    ```
+    """
     if models_path == "" or framework == "":
         print("Models path or framework is not set. Models will not be added.")
         sys.exit(0)

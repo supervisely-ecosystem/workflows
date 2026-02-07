@@ -19,7 +19,7 @@ on:
         type: string
         default: ""
       sdk_version:
-        description: "Supervisely SDK version (optional) - only needed if SDK is installed from branch"
+        description: "Supervisely SDK version (if not specified, will be taken from LABEL in Dockerfile; if not found — error)"
         required: false
         type: string
         default: ""
@@ -101,6 +101,7 @@ jobs:
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
       - name: Build Docker Image ${{ env.IMAGE_NAME }}:latest
+        if: inputs.latest_tag
         run: |
           buildctl build \
             --frontend dockerfile.v0 \

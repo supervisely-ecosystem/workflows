@@ -2,15 +2,18 @@ name: Release Models Manual
 on:
   workflow_dispatch:
     inputs:
-      models_path:
-        type: string
-        required: false
-      det_models_path:
-        type: string
-        required: false
       framework:
+        description: "Framework of the models to release (e.g., YOLO)"
         type: string
-        required: true
+        required: false
+      models_path:
+        description: "Path to the file models.json (e.g., supervisely_integration/models.json for YOLO)"
+        type: string
+        required: false
+      # det_models_path:
+      #   description: "[Legacy] Path to the file det_models_data.json (e.g., models/det_models_data.json for YOLOv8)"
+      #   type: string
+      #   required: false
 
 jobs:
   release-models:

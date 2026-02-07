@@ -27,6 +27,15 @@ jobs:
           repository: supervisely-ecosystem/workflows
           path: workflow
 
+      - name: Get Models Path and Framework
+        id: get_inputs
+        run: |
+          . release_venv/bin/activate
+          python workflow/get_inputs.py
+        env:
+          MODELS_PATH: ${{ inputs.MODELS_PATH }}
+          FRAMEWORK: ${{ inputs.FRAMEWORK }}
+
       - name: Sync models
         run: |
           . release_venv/bin/activate
