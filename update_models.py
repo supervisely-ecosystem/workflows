@@ -11,8 +11,8 @@ from supervisely.api.module_api import ApiField
 dotenv.load_dotenv(os.path.expanduser("~/supervisely.env"))
 
 api = Api()
-server_address = os.environ["SERVER_ADDRESS"]
-api_token = os.environ["API_TOKEN"]
+server_address = os.environ["SUPERVISELY_PROD_SERVER_ADDRESS"]
+api_token = os.environ["SUPERVISELY_PROD_API_TOKEN"]
 models_path = os.environ.get("MODELS_PATH", "")
 det_models_path = os.environ.get("DET_MODELS_PATH", "")
 seg_models_path = os.environ.get("SEG_MODELS_PATH", "")
@@ -58,7 +58,6 @@ def get_value(data: dict, keys: Union[str, List[str]]):
         return value
 
 
-
 def api_call(api_method, endpoint, params=None, data=None, json=None):
     call_function = requests.post if api_method == "post" else requests.get
     url = server_address.rstrip("/") + "/public/api/v3/" + endpoint.lstrip("/")
@@ -74,8 +73,10 @@ def api_call(api_method, endpoint, params=None, data=None, json=None):
         raise
     return r.json()
 
+
 def get(method, params=None, data=None, json=None):
     return api_call("get", method, params=params, data=data, json=json)
+
 
 def post(method, params=None, data=None, json=None):
     return api_call("post", method, params=params, data=data, json=json)
@@ -103,7 +104,9 @@ def get_list_all_pages(method, data):
 
         if len(results) != total:
             raise RuntimeError(
-                "Method {!r}: error during pagination, some items are missed".format(method)
+                "Method {!r}: error during pagination, some items are missed".format(
+                    method
+                )
             )
 
     return results
@@ -151,11 +154,19 @@ def update_model(model_id: int, parameters: dict):
 
 def find_serve_and_train_modules():
     try:
-        modules = api.app.get_list_ecosystem_modules(categories=[f"framework:{framework}"], categories_operation="and")
-        serve_module = next((m for m in modules if "serve" in m["config"]["categories"]))
-        train_module = next((m for m in modules if "train" in m["config"]["categories"]))
+        modules = api.app.get_list_ecosystem_modules(
+            categories=[f"framework:{framework}"], categories_operation="and"
+        )
+        serve_module = next(
+            (m for m in modules if "serve" in m["config"]["categories"])
+        )
+        train_module = next(
+            (m for m in modules if "train" in m["config"]["categories"])
+        )
     except StopIteration:
-        raise RuntimeError(f"Could not find serve or train modules for framework {framework}")
+        raise RuntimeError(
+            f"Could not find serve or train modules for framework {framework}"
+        )
     return serve_module, train_module
 
 
@@ -202,15 +213,11 @@ def get_model_name(model: Dict) -> str:
     return
 
 
-
 def get_evaluation(model: Dict) -> Dict:
     for key in ["mAP", "AP_val", "mAP (mask)"]:
         if key in model:
             return {
-                "metrics": {
-                    "mAP": model[key],
-                    "primaryKey": "mAP"
-                },
+                "metrics": {"mAP": model[key], "primaryKey": "mAP"},
             }
     return None
 
@@ -253,7 +260,7 @@ def main():
         except Exception as e:
             success = False
             print(f"Failed to update model {model_name}: {e}")
-    
+
     if success:
         print("All models updated successfully.")
     else:
