@@ -1056,6 +1056,16 @@ def run(
     return 1
 
 
+def check_release_models_flag(release_description: str) -> bool:
+    """
+    Check if RELEASE_MODELS flag is present in the release description.
+    Returns True if the flag is found, False otherwise.
+    """
+    if release_description is None:
+        return False
+    return "RELEASE_MODELS" in release_description
+
+
 def main():
     dev_server_address = os.getenv("SUPERVISELY_SERVER_ADDRESS", None)
     prod_server_address = os.getenv("SUPERVISELY_PROD_SERVER_ADDRESS", None)
@@ -1105,6 +1115,17 @@ def main():
     )
 
     release_type = os.getenv("RELEASE_TYPE", None)
+
+    # Check for RELEASE_MODELS flag in release description and write to GITHUB_OUTPUT
+    release_models = check_release_models_flag(release_description)
+    github_output = os.getenv("GITHUB_OUTPUT", None)
+    if github_output:
+        try:
+            with open(github_output, "a") as f:
+                f.write(f"release_models={str(release_models).lower()}\n")
+            print(f"INFO: RELEASE_MODELS flag detected: {release_models}")
+        except Exception as e:
+            print(f"WARNING: Could not write to GITHUB_OUTPUT: {e}")
 
     sys.exit(
         run(

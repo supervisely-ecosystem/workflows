@@ -17,7 +17,7 @@ on:
 
 jobs:
   release-models:
-    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
+    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@runner-updates
     with:
       MODELS_PATH: ${{ github.event.inputs.models_path }}
       DET_MODELS_PATH: ${{ github.event.inputs.models_path }}

@@ -3,13 +3,14 @@ run-name: Release version "${{ github.event.release.tag_name }}"
 on:
   release:
     types: [published]
-    branches:
-      - main
-      - master
+
 jobs:
   Supervisely-Release:
-    if: "!github.event.release.prerelease"
-    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
+    if: |
+      !github.event.release.prerelease &&
+      (github.event.release.target_commitish == 'main' || 
+       github.event.release.target_commitish == 'master')
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@runner-updates
     with:
       SLUG: "${{ github.repository }}"
       RELEASE_VERSION: "${{ github.event.release.tag_name }}"
