@@ -66,7 +66,7 @@ jobs:
       - name: Supervisely Release
         id: release
         run: |
-          . .release_venv/bin/activate
+          . $HOME/.release_venv/bin/activate
           which python
           python --version
           python -c "import sys; print(sys.executable)"
