@@ -7,6 +7,7 @@ import string
 import subprocess
 import sys
 import tarfile
+import traceback
 from pathlib import Path
 from typing import Dict, List, Literal
 
@@ -995,6 +996,7 @@ def run(
             "Error validating docker image. Check that docker image config is correct."
         )
         print(f"ERROR: {e}")
+        traceback.print_exc()
         return 1
 
     if need_validate_instance_version(
