@@ -66,7 +66,12 @@ jobs:
       - name: Supervisely Release
         id: release
         run: |
-          $HOME/.release_venv/bin/python ./workflow/release.py
+          . .release_venv/bin/activate
+          which python
+          python --version
+          python -c "import sys; print(sys.executable)"
+          python -c "import github; print(github.__file__)"
+          python ./workflow/release.py
         env:
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
