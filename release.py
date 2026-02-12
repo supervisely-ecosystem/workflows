@@ -1072,7 +1072,7 @@ def check_release_models_flag(release_description: str) -> bool:
 
 
 def main():
-    dev_server_address = os.getenv("SUPERVISELY_SERVER_ADDRESS", None)
+    dev_server_address = os.getenv("SUPERVISELY_DEV_SERVER_ADDRESS", None)
     prod_server_address = os.getenv("SUPERVISELY_PROD_SERVER_ADDRESS", None)
     dev_api_token = os.getenv("SUPERVISELY_DEV_API_TOKEN", None)
     private_dev_api_token = os.getenv("SUPERVISELY_PRIVATE_DEV_API_TOKEN", None)
@@ -1117,9 +1117,6 @@ def main():
         f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
         file=sys.stderr,
         flush=True,
-    )
-    print(
-        f"SUPERVISELY_SERVER_ADDRESS: {dev_server_address}", file=sys.stderr, flush=True
     )
     print(
         f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
