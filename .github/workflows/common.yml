@@ -66,25 +66,8 @@ jobs:
       - name: Supervisely Release
         id: release
         run: |
-          echo "=== Runner info ==="
-          cat /etc/os-release || echo "No os-release file"
-          echo "RUNNER_NAME: $RUNNER_NAME"
-          echo "RUNNER_OS: $RUNNER_OS"
-          echo "ImageOS: $ImageOS"
-          echo "ImageVersion: $ImageVersion"
-          echo ""
-          echo "=== Python environment ==="
           . $HOME/.release_venv/bin/activate
-          which python
-          python --version
-          python -c "import sys; print(sys.executable)"
-          echo ""
-          echo "=== Installed packages in venv ==="
-          pip list
-          echo ""
-          echo "=== Trying to import github ==="
-          python -c "import github; print(github.__file__)" || echo "Module 'github' not found"
-          echo ""
+          pip install PyGithub==2.8.1
           python ./workflow/release.py
         env:
           SLUG: "${{ inputs.SLUG }}"
