@@ -901,6 +901,8 @@ def validate_docker_image(subapp_paths):
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         print("INFO: Validating subapp:", subapp_name)
+        print(f"INFO: Current working directory: {os.getcwd()}")
+        print(f"INFO: Subapp path: {subapp_path}")
         try:
             config = get_config(subapp_path)
         except Exception:
@@ -909,12 +911,14 @@ def validate_docker_image(subapp_paths):
         if config.get("type", None) in ["project", "collection", "client_side_app"]:
             return
         docker_image = config["docker_image"].replace("supervisely/", "")
+        print(f"INFO: Docker image to validate: {docker_image}")
         skopeo_result = subprocess.run(
             ["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
         if skopeo_result.returncode != 0:
+            print(f"ERROR: skopeo stderr: {skopeo_result.stderr.decode('utf-8')}")
             raise RuntimeError(
                 f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}"
             )
@@ -986,10 +990,11 @@ def run(
 
     try:
         validate_docker_image(subapp_paths)
-    except:
+    except Exception as e:
         print(
             "Error validating docker image. Check that docker image config is correct."
         )
+        print(f"ERROR: {e}")
         return 1
 
     if need_validate_instance_version(
