@@ -67,7 +67,7 @@ jobs:
       - name: Supervisely Release
         id: release
         run: |
-          apt-get update && apt-get install -y skopeo
+          sudo apt-get update && apt-get install -y skopeo
           . $HOME/.release_venv/bin/activate
           pip install PyGithub==2.8.1
           python ./workflow/release.py
