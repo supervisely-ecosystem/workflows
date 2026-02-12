@@ -1118,6 +1118,19 @@ def main():
         file=sys.stderr,
         flush=True,
     )
+    print(
+        f"SUPERVISELY_SERVER_ADDRESS: {dev_server_address}", file=sys.stderr, flush=True
+    )
+    print(
+        f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
+        file=sys.stderr,
+        flush=True,
+    )
+    print(
+        f"SUPERVISELY_PROD_SERVER_ADDRESS: {prod_server_address}",
+        file=sys.stderr,
+        flush=True,
+    )
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
