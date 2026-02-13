@@ -1128,6 +1128,7 @@ def main():
         file=sys.stderr,
         flush=True,
     )
+    print(f"IMAGE_TAG: {os.getenv('IMAGE_TAG', None)}", file=sys.stderr, flush=True)
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
