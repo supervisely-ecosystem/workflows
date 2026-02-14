@@ -666,7 +666,8 @@ def publish(
 
 
 def fetch_versions_json(github_access_token):
-    GH = Github(github_access_token)
+    gh_auth = Auth.Token(github_access_token)
+    GH = Github(auth=gh_auth)
     repo = GH.get_repo("supervisely/supervisely")
     try:
         # Try to get versions.json from the supervisely subdirectory (new location)
@@ -679,7 +680,8 @@ def fetch_versions_json(github_access_token):
 
 
 def fetch_docker_images(github_access_token):
-    GH = Github(github_access_token)
+    gh_auth = Auth.Token(github_access_token)
+    GH = Github(auth=gh_auth)
     repo = GH.get_repo("supervisely/supervisely")
     docker_images_dirs = repo.get_contents("docker_images")
     images = []
@@ -691,7 +693,8 @@ def fetch_docker_images(github_access_token):
 
 
 def fetch_release_description(github_access_token, slug, release_version):
-    GH = Github(github_access_token)
+    gh_auth = Auth.Token(github_access_token)
+    GH = Github(auth=gh_auth)
     gh_repo = GH.get_repo(slug)
     gh_release = gh_repo.get_release(release_version)
     return gh_release.body
@@ -727,8 +730,10 @@ def validate_instance_version(
         versions_json = fetch_versions_json(github_access_token)
         print("INFO: Versions info:")
         print(json.dumps(versions_json, indent=4))
-    except Exception:
-        print("ERROR: versions.json not found in root and supervisely/ subdirectory.")
+    except Exception as e:
+        print(
+            f"ERROR: versions.json not found in root and supervisely/ subdirectory. Exception: {e}"
+        )
         raise
     release_description = fetch_release_description(
         github_access_token, slug, release_version
@@ -738,16 +743,20 @@ def validate_instance_version(
         standard_docker_images = fetch_docker_images(github_access_token)
         standard_docker_images = ["base-py-sdk", *standard_docker_images]
         print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
-    except Exception:
-        print("ERROR: docker_images not found in supervisely/supervisely repository.")
+    except Exception as e:
+        print(
+            f"ERROR: docker_images not found in supervisely/supervisely repository. Exception: {e}"
+        )
         raise
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         print("INFO: Validating subapp:", subapp_name)
         try:
             config = get_config(subapp_path)
-        except Exception:
-            print(f"ERROR: Config file not found in subapp {subapp_name}")
+        except Exception as e:
+            print(
+                f"ERROR: Config file not found in subapp {subapp_name}. Exception: {e}"
+            )
             raise
         if config.get("type", None) == "collection":
             print(f"INFO: App {subapp_name} is a collection. Skipping validation.")
@@ -1098,37 +1107,37 @@ def main():
         except Exception:
             return "<error>"
 
-    print(
-        f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(
-        f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(
-        f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(
-        f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(
-        f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(
-        f"SUPERVISELY_PROD_SERVER_ADDRESS: {prod_server_address}",
-        file=sys.stderr,
-        flush=True,
-    )
-    print(f"IMAGE_TAG: {os.getenv('IMAGE_TAG', None)}", file=sys.stderr, flush=True)
+    # print(
+    #     f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PROD_SERVER_ADDRESS: {prod_server_address}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(f"IMAGE_TAG: {os.getenv('IMAGE_TAG', None)}", file=sys.stderr, flush=True)
 
     release_type = os.getenv("RELEASE_TYPE", None)
 
