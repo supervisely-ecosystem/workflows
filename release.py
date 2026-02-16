@@ -665,10 +665,10 @@ def publish(
     return 0 if all_success else 1
 
 
-def fetch_versions_json(github_access_token=None):
+def fetch_versions_json(sdk_github_access_token=None):
     """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
-    if github_access_token:
-        gh_auth = Auth.Token(github_access_token)
+    if sdk_github_access_token:
+        gh_auth = Auth.Token(sdk_github_access_token)
         GH = Github(auth=gh_auth)
     else:
         GH = Github()
@@ -683,10 +683,10 @@ def fetch_versions_json(github_access_token=None):
         return json.loads(versions_json.decoded_content.decode("utf-8"))
 
 
-def fetch_docker_images(github_access_token=None):
+def fetch_docker_images(sdk_github_access_token=None):
     """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
-    if github_access_token:
-        gh_auth = Auth.Token(github_access_token)
+    if sdk_github_access_token:
+        gh_auth = Auth.Token(sdk_github_access_token)
         GH = Github(auth=gh_auth)
     else:
         GH = Github()
@@ -735,11 +735,11 @@ def validate_instance_version(
     subapp_paths: List[str],
     slug: str,
     release_version: str,
-    sdk_access_token: str = None,
+    sdk_github_access_token: str = None,
 ):
     # fetch versions.json
     try:
-        versions_json = fetch_versions_json(sdk_access_token)
+        versions_json = fetch_versions_json(sdk_github_access_token)
         print("INFO: Versions info:")
         print(json.dumps(versions_json, indent=4))
     except Exception as e:
@@ -752,7 +752,7 @@ def validate_instance_version(
     )
     # fetch docker_images
     try:
-        standard_docker_images = fetch_docker_images(sdk_access_token)
+        standard_docker_images = fetch_docker_images(sdk_github_access_token)
         standard_docker_images = ["base-py-sdk", *standard_docker_images]
         print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
     except Exception as e:
@@ -959,6 +959,7 @@ def run(
     release_type: Literal["release", "release-branch", "publish"],
     include_sly_releases=False,
     archive_only_config=False,
+    sdk_github_access_token=None,
 ):
     """
     slug - Slug of the app. Example: "supervisely-ecosystem/test-app"
@@ -968,6 +969,7 @@ def run(
     api_token - API token of the releasing user.
     server_address - Server address of the instance where to release.
     github_access_token - Github access token of the releasing user.
+    sdk_github_access_token - Github access token of the releasing user to access SDK repositories.
     prod_api_token - API token of production instance user.
     prod_server_address - Server address of the production instance.
     release_version - Version of the release. In semver format for version release
@@ -1023,7 +1025,11 @@ def run(
     ):
         try:
             validate_instance_version(
-                github_access_token, subapp_paths, slug, release_version
+                github_access_token,
+                subapp_paths,
+                slug,
+                release_version,
+                sdk_github_access_token,
             )
         except Exception as e:
             print("Error validating instance version")
@@ -1101,9 +1107,7 @@ def main():
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
-    sdk_github_access_token = os.getenv(
-        "SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None
-    )  # TODO will be used later
+    sdk_github_access_token = os.getenv("SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
@@ -1181,6 +1185,7 @@ def main():
             release_description=release_description,
             release_type=release_type,
             archive_only_config=archive_only_config,
+            sdk_github_access_token=sdk_github_access_token,
         )
     )
 
