@@ -665,9 +665,13 @@ def publish(
     return 0 if all_success else 1
 
 
-def fetch_versions_json(github_access_token):
-    gh_auth = Auth.Token(github_access_token)
-    GH = Github(auth=gh_auth)
+def fetch_versions_json(github_access_token=None):
+    """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
+    if github_access_token:
+        gh_auth = Auth.Token(github_access_token)
+        GH = Github(auth=gh_auth)
+    else:
+        GH = Github()
     repo = GH.get_repo("supervisely/supervisely")
     try:
         # Try to get versions.json from the supervisely subdirectory (new location)
@@ -679,9 +683,13 @@ def fetch_versions_json(github_access_token):
         return json.loads(versions_json.decoded_content.decode("utf-8"))
 
 
-def fetch_docker_images(github_access_token):
-    gh_auth = Auth.Token(github_access_token)
-    GH = Github(auth=gh_auth)
+def fetch_docker_images(github_access_token=None):
+    """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
+    if github_access_token:
+        gh_auth = Auth.Token(github_access_token)
+        GH = Github(auth=gh_auth)
+    else:
+        GH = Github()
     repo = GH.get_repo("supervisely/supervisely")
     docker_images_dirs = repo.get_contents("docker_images")
     images = []
@@ -723,11 +731,15 @@ def is_valid_versions(instace_version: str, sdk_version: str, versions_json: Dic
 
 
 def validate_instance_version(
-    github_access_token: str, subapp_paths: List[str], slug: str, release_version: str
+    github_access_token: str,
+    subapp_paths: List[str],
+    slug: str,
+    release_version: str,
+    sdk_access_token: str = None,
 ):
     # fetch versions.json
     try:
-        versions_json = fetch_versions_json(github_access_token)
+        versions_json = fetch_versions_json(sdk_access_token)
         print("INFO: Versions info:")
         print(json.dumps(versions_json, indent=4))
     except Exception as e:
@@ -740,7 +752,7 @@ def validate_instance_version(
     )
     # fetch docker_images
     try:
-        standard_docker_images = fetch_docker_images(github_access_token)
+        standard_docker_images = fetch_docker_images(sdk_access_token)
         standard_docker_images = ["base-py-sdk", *standard_docker_images]
         print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
     except Exception as e:
@@ -1089,6 +1101,9 @@ def main():
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
+    sdk_github_access_token = os.getenv(
+        "SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None
+    )  # TODO will be used later
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
