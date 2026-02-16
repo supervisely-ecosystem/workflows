@@ -19,10 +19,11 @@ jobs:
   update-models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
-      - name: Checkout repository
+      - name: Checkout current repository
         uses: actions/checkout@v6
 
-      - uses: actions/checkout@v6
+      - name: Checkout workflows repository
+        uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           ref: runner-updates
