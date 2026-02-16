@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
+          ref: runner-updates
           path: workflow
 
       - name: Get Models Path and Framework
