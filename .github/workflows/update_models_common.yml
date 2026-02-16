@@ -43,7 +43,5 @@ jobs:
           . $HOME/.release_venv/bin/activate
           python workflow/update_models.py
         env:
-          MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
           SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
-          FRAMEWORK: ${{ inputs.FRAMEWORK }}
