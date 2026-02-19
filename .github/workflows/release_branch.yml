@@ -1,4 +1,4 @@
-name: Release branch
+name: Release App Branch
 run-name: Release "${{ github.ref_name }}" branch
 on:
   push:
@@ -6,8 +6,8 @@ on:
       - main
       - master
 jobs:
-  Supervisely-Release:
-    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@runner-updates
+  Supervisely-Release-Branch:
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     with:
       SLUG: "${{ github.repository }}"
       RELEASE_VERSION: "${{ github.ref_name }}"

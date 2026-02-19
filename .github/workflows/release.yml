@@ -1,4 +1,4 @@
-name: Release
+name: Release App
 run-name: Release version "${{ github.event.release.tag_name }}"
 on:
   release:
@@ -10,7 +10,7 @@ jobs:
       !github.event.release.prerelease &&
       (github.event.release.target_commitish == 'main' || 
        github.event.release.target_commitish == 'master')
-    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@runner-updates
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     with:
       SLUG: "${{ github.repository }}"
       RELEASE_VERSION: "${{ github.event.release.tag_name }}"

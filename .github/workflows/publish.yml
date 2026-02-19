@@ -1,9 +1,9 @@
-name: Publish app to production
-run-name: Publish app to production
+name: Publish App to Production
+run-name: Publish App to Production
 on: workflow_dispatch
 jobs:
-  Supervisely-Release:
-    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@runner-updates
+  Supervisely-Publish:
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     with:
       SLUG: "${{ github.repository }}"
       RELEASE_VERSION: ""

@@ -1,5 +1,5 @@
-name: Supervisely release
-run-name: Supervisely ${{ github.repository }} app release
+name: Supervisely Release
+run-name: Supervisely ${{ github.repository }} App Release
 on:
   workflow_call:
     inputs:
@@ -46,6 +46,21 @@ on:
         required: false
         type: boolean
         default: false
+      SUPERVISELY_SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release.py
+        required: false
+        type: string
+      SUPERVISELY_PROD_SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release.py
+        required: false
+        type: string
+    secrets: # all these secrets are left for backward compatibility, will be taken from config or env vars in release.py
+      SUPERVISELY_DEV_API_TOKEN:
+        required: false
+      SUPERVISELY_PRIVATE_DEV_API_TOKEN:
+        required: false
+      SUPERVISELY_PROD_API_TOKEN:
+        required: false
+      GH_ACCESS_TOKEN:
+        required: false
 
 jobs:
   Supervisely-Release:
@@ -79,10 +94,10 @@ jobs:
           SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
           ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
 
-  Models-release:
+  Models-Release:
     needs: Supervisely-Release
     if: (inputs.RELEASE_MODELS || needs.Supervisely-Release.outputs.release_models == 'true') && inputs.RELEASE_TYPE != 'release-branch'
-    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@runner-updates
+    uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
     with:
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
