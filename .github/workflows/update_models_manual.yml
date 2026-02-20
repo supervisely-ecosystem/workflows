@@ -10,10 +10,10 @@ on:
         description: "Path to the file models.json (e.g., supervisely_integration/models.json for YOLO)"
         type: string
         required: false
-      # seg_models_path:
-      #   description: "[Legacy] Path to the file seg_models_data.json (e.g., models/seg_models.json for YOLOv8)"
-      #   type: string
-      #   required: false
+      seg_models_path: # left here for backward compatibility, will be taken from config or env vars in release_models.py
+        description: "[Legacy] Path to the file seg_models_data.json (e.g., models/seg_models.json for YOLOv8)"
+        type: string
+        required: false
 
 jobs:
   update-models:
