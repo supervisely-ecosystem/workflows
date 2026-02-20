@@ -14,41 +14,34 @@ on:
       FRAMEWORK:
         type: string
         required: true
-      SERVER_ADDRESS:
-        type: string
-        required: true
-    secrets:
-      API_TOKEN:
-        required: true
 
 jobs:
-  update-models:
+  Update-Models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
-      - name: Checkout repository
+      - name: Checkout current repository
         uses: actions/checkout@v6
 
-      - uses: actions/checkout@v6
+      - name: Checkout workflows repository
+        uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
+          ref: runner-updates
           path: workflow
 
-      - name: Install dependencies
+      - name: Get Models Path and Framework
+        id: get_inputs
         run: |
-          sudo apt-get update
-          python -m venv venv
-          . venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r workflow/requirements.txt
+          . $HOME/.release_venv/bin/activate
+          python workflow/get_inputs.py
+        env:
+          MODELS_PATH: ${{ inputs.MODELS_PATH }}
+          FRAMEWORK: ${{ inputs.FRAMEWORK }}
 
       - name: Sync models
         run: |
-          . venv/bin/activate
+          . $HOME/.release_venv/bin/activate
           python workflow/update_models.py
         env:
-          SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          MODELS_PATH: ${{ inputs.MODELS_PATH }}
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
           SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
-          FRAMEWORK: ${{ inputs.FRAMEWORK }}

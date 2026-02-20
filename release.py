@@ -11,10 +11,15 @@ from pathlib import Path
 from typing import Dict, List, Literal
 
 import git
-from github import ContentFile, Github, GithubException, GitRelease
-from supervisely.cli.release.release import (cd, delete_directory,
-                                             get_app_from_instance, get_appKey,
-                                             get_created_at, upload_archive)
+from github import Auth, ContentFile, Github, GithubException, GitRelease
+from supervisely.cli.release.release import (
+    cd,
+    delete_directory,
+    get_app_from_instance,
+    get_appKey,
+    get_created_at,
+    upload_archive,
+)
 from supervisely.io.fs import dir_exists, list_files_recursively, remove_dir
 
 
@@ -123,6 +128,7 @@ def print_results(results):
     print()
     return success_count == len(results)
 
+
 def archive_application(repo: git.Repo, config, slug, archive_only_config=False):
     archive_folder = "".join(random.choice(string.ascii_letters) for _ in range(5))
     os.mkdir(archive_folder)
@@ -149,7 +155,10 @@ def archive_application(repo: git.Repo, config, slug, archive_only_config=False)
             with cd(str(working_dir_path), add_to_path=True):
                 exec(open("sly_sdk/render.py", "r").read(), {"__name__": "__main__"})
                 file_paths.extend(
-                    [Path(p).absolute() for p in list_files_recursively(str(gui_folder_path))]
+                    [
+                        Path(p).absolute()
+                        for p in list_files_recursively(str(gui_folder_path))
+                    ]
                 )
         archive_path = archive_folder + "/archive.tar"
         write_mode = "w"
@@ -187,7 +196,7 @@ def release(
     created_at=None,
     share_app=False,
     archive_only_config=False,
-    files=None
+    files=None,
 ):
     if created_at is None:
         created_at = get_created_at(repo, release_version)
@@ -212,7 +221,7 @@ def release(
             user_id,
             subapp_path,
             share_app,
-            files
+            files,
         )
     finally:
         delete_directory(os.path.dirname(archive_path))
@@ -231,7 +240,7 @@ def do_release(
     repo_url,
     created_at,
     share,
-    archive_only_config=False
+    archive_only_config=False,
 ):
     app_name = "Unknown"
     try:
@@ -245,7 +254,7 @@ def do_release(
             files = files.copy()
             for file_name, file_path in files.items():
                 files[file_name] = file_path
-    
+
         if share:
             try:
                 app = get_app_from_instance(appKey, api_token, server_address)
@@ -268,7 +277,7 @@ def do_release(
             subapp_path=subapp_path,
             share_app=share,
             archive_only_config=archive_only_config,
-            files=files
+            files=files,
         )
 
         return {
@@ -333,7 +342,8 @@ def get_GitHub_releases(
                 tag_name = tag_name[len("sly-release-") :]
         return is_valid_version(tag_name)
 
-    GH = Github(github_access_token)
+    gh_auth = Auth.Token(github_access_token)
+    GH = Github(auth=gh_auth)
     gh_repo = GH.get_repo(slug)
     gh_releases = [
         r
@@ -355,7 +365,7 @@ def run_release(
     subapp_paths: List[str],
     release_version: str,
     release_description: str,
-    archive_only_config = False
+    archive_only_config=False,
 ):
     if not is_valid_version(release_version):
         print("Release version is not valid. Should be in semver format (v1.2.3).")
@@ -408,7 +418,7 @@ def run_release(
                     repo_url=repo_url,
                     created_at=None,
                     share=share,
-                    archive_only_config=archive_only_config
+                    archive_only_config=archive_only_config,
                 )
             )
             if results[-1]["Status code"] == 200:
@@ -434,19 +444,14 @@ def run_release(
         else:
             if subapp_path is None:
                 print(
-                    "Releasing root app Failed...".ljust(
-                        53
-                    ),
+                    "Releasing root app Failed...".ljust(53),
                     end=" ",
                 )
             else:
                 print(
-                    (
-                        f'Releasing subapp at "{subapp_path}" Failed'[
-                            :50
-                        ]
-                        + "..."
-                    ).ljust(53),
+                    (f'Releasing subapp at "{subapp_path}" Failed'[:50] + "...").ljust(
+                        53
+                    ),
                     end=" ",
                 )
             print("[Fail]\n")
@@ -479,7 +484,7 @@ def run_release_branch(
     subapp_paths: List[str],
     release_version: str,
     release_description: str,
-    archive_only_config = False,
+    archive_only_config=False,
 ):
     if is_valid_version(release_version):
         print("Branch name is not valid. Should not be in semver format (v1.2.3).")
@@ -660,8 +665,13 @@ def publish(
     return 0 if all_success else 1
 
 
-def fetch_versions_json(github_access_token):
-    GH = Github(github_access_token)
+def fetch_versions_json(sdk_github_access_token=None):
+    """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
+    if sdk_github_access_token:
+        gh_auth = Auth.Token(sdk_github_access_token)
+        GH = Github(auth=gh_auth)
+    else:
+        GH = Github()
     repo = GH.get_repo("supervisely/supervisely")
     try:
         # Try to get versions.json from the supervisely subdirectory (new location)
@@ -673,8 +683,13 @@ def fetch_versions_json(github_access_token):
         return json.loads(versions_json.decoded_content.decode("utf-8"))
 
 
-def fetch_docker_images(github_access_token):
-    GH = Github(github_access_token)
+def fetch_docker_images(sdk_github_access_token=None):
+    """Don't need auth token for public repos, but to avoid rate limits, we can use it if provided."""
+    if sdk_github_access_token:
+        gh_auth = Auth.Token(sdk_github_access_token)
+        GH = Github(auth=gh_auth)
+    else:
+        GH = Github()
     repo = GH.get_repo("supervisely/supervisely")
     docker_images_dirs = repo.get_contents("docker_images")
     images = []
@@ -686,7 +701,8 @@ def fetch_docker_images(github_access_token):
 
 
 def fetch_release_description(github_access_token, slug, release_version):
-    GH = Github(github_access_token)
+    gh_auth = Auth.Token(github_access_token)
+    GH = Github(auth=gh_auth)
     gh_repo = GH.get_repo(slug)
     gh_release = gh_repo.get_release(release_version)
     return gh_release.body
@@ -709,34 +725,50 @@ def is_valid_versions(instace_version: str, sdk_version: str, versions_json: Dic
     min_sdk, max_sdk = get_sdk_versions_range(instace_version, versions_json)
     if min_sdk is None:
         return compare_semver(sdk_version, max_sdk) < 0
-    return compare_semver(sdk_version, min_sdk) >= 0 and (max_sdk is None or compare_semver(sdk_version, max_sdk) < 0)
+    return compare_semver(sdk_version, min_sdk) >= 0 and (
+        max_sdk is None or compare_semver(sdk_version, max_sdk) < 0
+    )
 
 
-def validate_instance_version(github_access_token: str, subapp_paths: List[str], slug:str, release_version: str):
+def validate_instance_version(
+    github_access_token: str,
+    subapp_paths: List[str],
+    slug: str,
+    release_version: str,
+    sdk_github_access_token: str = None,
+):
     # fetch versions.json
     try:
-        versions_json = fetch_versions_json(github_access_token)
+        versions_json = fetch_versions_json(sdk_github_access_token)
         print("INFO: Versions info:")
         print(json.dumps(versions_json, indent=4))
-    except Exception:
-        print("ERROR: versions.json not found in root and supervisely/ subdirectory.")
+    except Exception as e:
+        print(
+            f"ERROR: versions.json not found in root and supervisely/ subdirectory. Exception: {e}"
+        )
         raise
-    release_description = fetch_release_description(github_access_token, slug, release_version)
+    release_description = fetch_release_description(
+        github_access_token, slug, release_version
+    )
     # fetch docker_images
     try:
-        standard_docker_images = fetch_docker_images(github_access_token)
+        standard_docker_images = fetch_docker_images(sdk_github_access_token)
         standard_docker_images = ["base-py-sdk", *standard_docker_images]
         print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
-    except Exception:
-        print("ERROR: docker_images not found in supervisely/supervisely repository.")
+    except Exception as e:
+        print(
+            f"ERROR: docker_images not found in supervisely/supervisely repository. Exception: {e}"
+        )
         raise
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         print("INFO: Validating subapp:", subapp_name)
         try:
             config = get_config(subapp_path)
-        except Exception:
-            print(f"ERROR: Config file not found in subapp {subapp_name}")
+        except Exception as e:
+            print(
+                f"ERROR: Config file not found in subapp {subapp_name}. Exception: {e}"
+            )
             raise
         if config.get("type", None) == "collection":
             print(f"INFO: App {subapp_name} is a collection. Skipping validation.")
@@ -748,67 +780,137 @@ def validate_instance_version(github_access_token: str, subapp_paths: List[str],
             print(f"INFO: App {subapp_name} is a client_side_app. Skipping validation.")
             continue
         # check requirements.txt
-        if Path("" if subapp_path is None else subapp_path, "requirements.txt").exists():
+        if Path(
+            "" if subapp_path is None else subapp_path, "requirements.txt"
+        ).exists():
             print(f"ERROR: requirements.txt file found in subapp {subapp_name}.")
-            print("ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt")
+            print(
+                "ERROR: Usage of requirements.txt is not allowed. Please, include all dependencies in the Dockerfile and remove requirements.txt"
+            )
             raise RuntimeError(f"requirements.txt file found in subapp: {subapp_name}")
         if "instance_version" not in config and "min_instance_version" not in config:
-            print(f"ERROR: instance_version key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#instance_version")
+            print(
+                f"ERROR: instance_version key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#instance_version"
+            )
             raise RuntimeError(f"instance_version key not found in {subapp_name}")
-        instance_version = config.get("instance_version", config.get("min_instance_version"))
+        instance_version = config.get(
+            "instance_version", config.get("min_instance_version")
+        )
         print(f"INFO: instance_version: {instance_version}")
         if "docker_image" not in config:
-            print(f"ERROR: docker_image key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#docker_image")
+            print(
+                f"ERROR: docker_image key not found in {subapp_name}. This key must be provided, check out the docs: https://developer.supervisely.com/app-development/basics/app-json-config/config.json#docker_image"
+            )
             raise RuntimeError(f"docker_image key not found in {subapp_name}")
         docker_image = config["docker_image"].replace("supervisely/", "")
         print(f"INFO: docker_image: {docker_image}")
         image_name, image_version = docker_image.split(":")
         if image_name in standard_docker_images:
-            print(f"INFO: Docker image {image_name} is in the list of standard docker images.")
-            print(f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK.")
+            print(
+                f"INFO: Docker image {image_name} is in the list of standard docker images."
+            )
+            print(
+                f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK."
+            )
             sdk_version = image_version
         else:
-            print(f"INFO: Docker image {image_name} is not in the list of standard docker images.")
+            print(
+                f"INFO: Docker image {image_name} is not in the list of standard docker images."
+            )
             try:
                 print("INFO: Looking for SDK version in docker image labels")
-                skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{image_name}:{image_version}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                skopeo_result = subprocess.run(
+                    [
+                        "skopeo",
+                        "inspect",
+                        f"docker://docker.io/supervisely/{image_name}:{image_version}",
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
                 if skopeo_result.returncode != 0:
-                    raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
+                    raise RuntimeError(
+                        f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}"
+                    )
                 inspect_data = json.loads(skopeo_result.stdout.decode("utf-8").strip())
                 labels = inspect_data["Labels"]
                 sdk_version = None
-                for key in ("python_sdk_version", "python-sdk-version", "supervisely-sdk-version", "supervisely_sdk_version"):
+                for key in (
+                    "python_sdk_version",
+                    "python-sdk-version",
+                    "supervisely-sdk-version",
+                    "supervisely_sdk_version",
+                ):
                     if key in labels:
                         sdk_version = labels[key]
                         break
                 if sdk_version is None:
-                    raise RuntimeError(f"python_sdk_version not found in the docker image labels. Labels: {', '.join(labels.keys())}")
-                sdk_version = sdk_version.split("+")[0].split("-")[0] # remove build metadata
+                    raise RuntimeError(
+                        f"python_sdk_version not found in the docker image labels. Labels: {', '.join(labels.keys())}"
+                    )
+                sdk_version = sdk_version.split("+")[0].split("-")[
+                    0
+                ]  # remove build metadata
             except Exception as e:
-                print(f"INFO: python_sdk_version not found in the docker image labels. Error: {e}")
-                print("INFO: When using custom docker images, you must provide the python_sdk_version in the docker image labels, example: python_sdk_version=6.73.10")
-                print("INFO: Will read release description to find the appropriate SDK version.")
+                print(
+                    f"INFO: python_sdk_version not found in the docker image labels. Error: {e}"
+                )
+                print(
+                    "INFO: When using custom docker images, you must provide the python_sdk_version in the docker image labels, example: python_sdk_version=6.73.10"
+                )
+                print(
+                    "INFO: Will read release description to find the appropriate SDK version."
+                )
                 print("INFO: Release description:", release_description)
                 if release_description.find("python_sdk_version") == -1:
-                    print("ERROR: python_sdk_version not found in the release description.")
-                    print("ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10")
-                    raise RuntimeError("python_sdk_version not found in the release description.")
-                sdk_version = release_description.split("python_sdk_version:")[1].strip(" \n")
+                    print(
+                        "ERROR: python_sdk_version not found in the release description."
+                    )
+                    print(
+                        "ERROR: When using custom docker images, you must provide the python_sdk_version in the release description, example: python_sdk_version: 6.73.10"
+                    )
+                    raise RuntimeError(
+                        "python_sdk_version not found in the release description."
+                    )
+                sdk_version = release_description.split("python_sdk_version:")[1].strip(
+                    " \n"
+                )
         print(f"INFO: SDK version to check: {sdk_version}")
         # validate version
         if not is_valid_versions(instance_version, sdk_version, versions_json):
-            min_sdk_ver, max_sdk_ver = get_sdk_versions_range(instance_version, versions_json)
-            print(f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}")
-            print(f"ERROR: for version {instance_version} SDK version should be in range [{min_sdk_ver} : {max_sdk_ver})")
-            raise ValueError(f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}")
-        print(f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}")
+            min_sdk_ver, max_sdk_ver = get_sdk_versions_range(
+                instance_version, versions_json
+            )
+            print(
+                f"ERROR: Supervisely server version {instance_version} is incompatible with SDK version {sdk_version}"
+            )
+            print(
+                f"ERROR: for version {instance_version} SDK version should be in range [{min_sdk_ver} : {max_sdk_ver})"
+            )
+            raise ValueError(
+                f"ERROR: Server version {instance_version} is incompatible with SDK version {sdk_version}"
+            )
+        print(
+            f"INFO: SDK version {sdk_version} is valid for Instance version {instance_version}"
+        )
 
-def need_validate_instance_version(release_type: str, github_access_token: str, slug: str, release_version: str):
+
+def need_validate_instance_version(
+    release_type: str, github_access_token: str, slug: str, release_version: str
+):
     if release_type != ReleaseType.RELEASE:
         return False
-    if os.getenv("SKIP_INSTANCE_VERSION_VALIDATION", False) in [1, "1", "true", "True", True]:
+    if os.getenv("SKIP_INSTANCE_VERSION_VALIDATION", False) in [
+        1,
+        "1",
+        "true",
+        "True",
+        True,
+    ]:
         return False
-    release_description = fetch_release_description(github_access_token, slug, release_version)
+    release_description = fetch_release_description(
+        github_access_token, slug, release_version
+    )
     if release_description.find("skip_sdk_version_validation") != -1:
         return False
     return True
@@ -820,6 +922,8 @@ def validate_docker_image(subapp_paths):
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         print("INFO: Validating subapp:", subapp_name)
+        print(f"INFO: Current working directory: {os.getcwd()}")
+        print(f"INFO: Subapp path: {subapp_path}")
         try:
             config = get_config(subapp_path)
         except Exception:
@@ -828,9 +932,17 @@ def validate_docker_image(subapp_paths):
         if config.get("type", None) in ["project", "collection", "client_side_app"]:
             return
         docker_image = config["docker_image"].replace("supervisely/", "")
-        skopeo_result = subprocess.run(["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f"INFO: Docker image to validate: {docker_image}")
+        skopeo_result = subprocess.run(
+            ["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         if skopeo_result.returncode != 0:
-            raise RuntimeError(f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}")
+            print(f"ERROR: skopeo stderr: {skopeo_result.stderr.decode('utf-8')}")
+            raise RuntimeError(
+                f"skopeo inspect failed with code {skopeo_result.returncode}: {skopeo_result.stderr.decode('utf-8')}"
+            )
 
 
 def run(
@@ -844,11 +956,10 @@ def run(
     github_access_token: str,
     release_version: str,
     release_description: str,
-    release_type: Literal[
-        "release", "release-branch", "publish"
-    ],
+    release_type: Literal["release", "release-branch", "publish"],
     include_sly_releases=False,
     archive_only_config=False,
+    sdk_github_access_token=None,
 ):
     """
     slug - Slug of the app. Example: "supervisely-ecosystem/test-app"
@@ -858,6 +969,7 @@ def run(
     api_token - API token of the releasing user.
     server_address - Server address of the instance where to release.
     github_access_token - Github access token of the releasing user.
+    sdk_github_access_token - Github access token of the releasing user to access SDK repositories.
     prod_api_token - API token of production instance user.
     prod_server_address - Server address of the production instance.
     release_version - Version of the release. In semver format for version release
@@ -867,7 +979,11 @@ def run(
     release_type - Type of the release. One of "release", "release-branch", "publish"
     """
 
-    release_types = [ReleaseType.RELEASE, ReleaseType.RELEASE_BRANCH, ReleaseType.PUBLISH]
+    release_types = [
+        ReleaseType.RELEASE,
+        ReleaseType.RELEASE_BRANCH,
+        ReleaseType.PUBLISH,
+    ]
     if release_type not in release_types:
         print(f"Unknown release type. Should be one of {release_types}")
         return 1
@@ -888,22 +1004,33 @@ def run(
 
     repo = git.Repo()
     try:
-      remote_name = repo.active_branch.tracking_branch().remote_name
-      remote = repo.remote(remote_name)
-      repo_url = remote.url
+        remote_name = repo.active_branch.tracking_branch().remote_name
+        remote = repo.remote(remote_name)
+        repo_url = remote.url
     except:
-      repo_url = f"https://github.com/{slug}"
-      print(f"Cannot define remote branch. Set repo_url to {repo_url}")
+        repo_url = f"https://github.com/{slug}"
+        print(f"Cannot define remote branch. Set repo_url to {repo_url}")
 
     try:
         validate_docker_image(subapp_paths)
-    except:
-        print("Error validating docker image. Check that docker image config is correct.")
+    except Exception as e:
+        print(
+            "Error validating docker image. Check that docker image config is correct."
+        )
+        print(f"ERROR: {e}")
         return 1
 
-    if need_validate_instance_version(release_type, github_access_token, slug, release_version):
+    if need_validate_instance_version(
+        release_type, github_access_token, slug, release_version
+    ):
         try:
-            validate_instance_version(github_access_token, subapp_paths, slug, release_version)
+            validate_instance_version(
+                github_access_token,
+                subapp_paths,
+                slug,
+                release_version,
+                sdk_github_access_token,
+            )
         except Exception as e:
             print("Error validating instance version")
             return 1
@@ -945,7 +1072,7 @@ def run(
                 github_access_token, slug, include_sly_releases
             )
         except GithubException as e:
-            print("Error connecting to Github. Could not publish app.")
+            print(f"Error connecting to Github. Could not publish app. Details: {e}")
             return 1
         return publish(
             prod_server_address=prod_server_address,
@@ -961,21 +1088,88 @@ def run(
     return 1
 
 
+def check_release_models_flag(release_description: str) -> bool:
+    """
+    Check if RELEASE_MODELS flag is present in the release description.
+    Returns True if the flag is found, False otherwise.
+    """
+    if release_description is None:
+        return False
+    return "RELEASE_MODELS" in release_description
+
+
 def main():
-    dev_server_address = os.getenv("DEV_SERVER_ADDRESS", None)
-    prod_server_address = os.getenv("PROD_SERVER_ADDRESS", None)
-    dev_api_token = os.getenv("DEV_API_TOKEN", None)
-    private_dev_api_token = os.getenv("PRIVATE_DEV_API_TOKEN", None)
-    prod_api_token = os.getenv("PROD_API_TOKEN", None)
+    dev_server_address = os.getenv("SUPERVISELY_DEV_SERVER_ADDRESS", None)
+    prod_server_address = os.getenv("SUPERVISELY_PROD_SERVER_ADDRESS", None)
+    dev_api_token = os.getenv("SUPERVISELY_DEV_API_TOKEN", None)
+    private_dev_api_token = os.getenv("SUPERVISELY_PRIVATE_DEV_API_TOKEN", None)
+    prod_api_token = os.getenv("SUPERVISELY_PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
-    github_access_token = os.getenv("GH_ACCESS_TOKEN", None)
+    github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
+    sdk_github_access_token = os.getenv("SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
     release_description = os.getenv("RELEASE_DESCRIPTION", None)
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
     archive_only_config = archive_only_config in [1, "1", "true", "True", True]
 
+    def _token_info(token):
+        # Provide a safe preview and a short hash for debugging without exposing full secret
+        if token is None or token == "":
+            return "None"
+        try:
+            import hashlib
+
+            preview = token if len(token) <= 12 else f"{token[:6]}...{token[-4:]}"
+            sha = hashlib.sha256(token.encode()).hexdigest()[:10]
+            return f"{preview} (sha256:{sha})"
+        except Exception:
+            return "<error>"
+
+    # print(
+    #     f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(
+    #     f"SUPERVISELY_PROD_SERVER_ADDRESS: {prod_server_address}",
+    #     file=sys.stderr,
+    #     flush=True,
+    # )
+    # print(f"IMAGE_TAG: {os.getenv('IMAGE_TAG', None)}", file=sys.stderr, flush=True)
+
     release_type = os.getenv("RELEASE_TYPE", None)
+
+    # Check for RELEASE_MODELS flag in release description and write to GITHUB_OUTPUT
+    release_models = check_release_models_flag(release_description)
+    github_output = os.getenv("GITHUB_OUTPUT", None)
+    if github_output:
+        try:
+            with open(github_output, "a") as f:
+                f.write(f"release_models={str(release_models).lower()}\n")
+            print(f"INFO: RELEASE_MODELS flag detected: {release_models}")
+        except Exception as e:
+            print(f"WARNING: Could not write to GITHUB_OUTPUT: {e}")
 
     sys.exit(
         run(
@@ -991,6 +1185,7 @@ def main():
             release_description=release_description,
             release_type=release_type,
             archive_only_config=archive_only_config,
+            sdk_github_access_token=sdk_github_access_token,
         )
     )
 

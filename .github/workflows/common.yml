@@ -1,14 +1,8 @@
-name: Supervisely release
-run-name: Supervisely ${{ github.repository }} app release
+name: Supervisely Release
+run-name: Supervisely ${{ github.repository }} App Release
 on:
   workflow_call:
     inputs:
-      SUPERVISELY_SERVER_ADDRESS:
-        required: true
-        type: string
-      SUPERVISELY_PROD_SERVER_ADDRESS:
-        required: true
-        type: string
       SLUG:
         required: true
         type: string
@@ -52,51 +46,45 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
+      SUPERVISELY_SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release.py
+        required: false
+        type: string
+      SUPERVISELY_PROD_SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release.py
+        required: false
+        type: string
+    secrets: # all these secrets are left for backward compatibility, will be taken from config or env vars in release.py
       SUPERVISELY_DEV_API_TOKEN:
-        required: true
+        required: false
       SUPERVISELY_PRIVATE_DEV_API_TOKEN:
-        required: true
+        required: false
       SUPERVISELY_PROD_API_TOKEN:
-        required: true
+        required: false
       GH_ACCESS_TOKEN:
-        required: true
+        required: false
 
 jobs:
   Supervisely-Release:
     runs-on: gha-runner-supervisely-ecosystem
+    outputs:
+      release_models: ${{ steps.release.outputs.release_models }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
+
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
+          ref: runner-updates
           path: workflow
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1 libmagic1 skopeo
-          python -m venv venv
-          . venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r ./workflow/requirements.txt
+
       - name: Supervisely Release
+        id: release
         run: |
-          . venv/bin/activate
+          . $HOME/.release_venv/bin/activate
           python ./workflow/release.py
         env:
-          DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
-          PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
-          PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
-          GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
           SLUG: "${{ inputs.SLUG }}"
           RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
           RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
@@ -106,15 +94,10 @@ jobs:
           SKIP_IMAGE_VALIDATION: "${{ inputs.SKIP_IMAGE_VALIDATION }}"
           ARCHIVE_ONLY_CONFIG: "${{ inputs.ARCHIVE_ONLY_CONFIG }}"
 
-  Models-release:
+  Models-Release:
     needs: Supervisely-Release
-    if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
+    if: (inputs.RELEASE_MODELS || needs.Supervisely-Release.outputs.release_models == 'true') && inputs.RELEASE_TYPE != 'release-branch'
     uses: supervisely-ecosystem/workflows/.github/workflows/sync_models_common.yml@master
-    secrets:
-      API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
     with:
-      SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       MODELS_PATH: "${{ inputs.MODELS_PATH }}"
       FRAMEWORK: "${{ inputs.FRAMEWORK }}"
-
-

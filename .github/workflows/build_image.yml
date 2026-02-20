@@ -19,7 +19,7 @@ on:
         type: string
         default: ""
       sdk_version:
-        description: "Supervisely SDK version (optional) - only needed if SDK is installed from branch"
+        description: "Supervisely SDK version (if not specified, will be taken from LABEL in Dockerfile; if not found — error)"
         required: false
         type: string
         default: ""
@@ -30,9 +30,9 @@ on:
         default: false
     secrets:
       DOCKERHUB_USERNAME:
-        required: true
+        required: false
       DOCKERHUB_TOKEN:
-        required: true
+        required: false
 
 jobs:
   build-and-push:
