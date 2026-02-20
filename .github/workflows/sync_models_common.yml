@@ -11,7 +11,12 @@ on:
       FRAMEWORK:
         type: string
         required: true
-
+      SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release_models.py
+        type: string
+        required: false
+    secrets: # left here for backward compatibility, will be taken from config or env vars in release_models.py
+      API_TOKEN:
+        required: false
 jobs:
   Release-Models:
     runs-on: gha-runner-supervisely-ecosystem
