@@ -1,0 +1,100 @@
+name: Build App Image From Template
+run-name: Build App Image for ${{ github.repository }}
+
+on:
+  workflow_call:
+    inputs:
+      dockerhub_repo:
+        description: "Docker Hub repo (optional); must be supervisely/*; defaults to supervisely/<repo>"
+        required: false
+        type: string
+        default: ""
+      dockerfile_template_path:
+        description: "Path to Dockerfile template in this repo"
+        required: false
+        type: string
+        default: "docker/Dockerfile.tmpl"
+      release_tag:
+        description: "Release tag name (optional; if empty, will be read from config.json .version)"
+        required: false
+        type: string
+        default: ""
+      push_latest:
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: supervisely-ecosystem/workflows
+          path: workflow
+
+      - name: Prepare image name and release tag
+        id: prep
+        run: |
+          IMAGE_NAME_INPUT="${{ inputs.dockerhub_repo }}"
+          if [ -n "$IMAGE_NAME_INPUT" ]; then
+            if [[ "$IMAGE_NAME_INPUT" != supervisely/* ]]; then
+              echo "dockerhub_repo must be in supervisely/*" >&2
+              exit 1
+            fi
+            IMAGE_NAME="$IMAGE_NAME_INPUT"
+          else
+            REPO_NAME="${GITHUB_REPOSITORY#*/}"
+            IMAGE_NAME="supervisely/$REPO_NAME"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
+
+          RELEASE_TAG="${{ inputs.release_tag }}"
+          if [ -z "$RELEASE_TAG" ]; then
+            RELEASE_TAG=$(python3 workflow/scripts/resolve_release_tag.py \
+              --config config.json \
+              --input-release-tag "${{ inputs.release_tag }}")
+          fi
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "Release tag is not set. Provide inputs.release_tag or config.json .version." >&2
+            exit 1
+          fi
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Render Dockerfile from template
+        run: |
+          TEMPLATE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
+          if [ ! -f "$TEMPLATE_PATH" ]; then
+            echo "Dockerfile template not found at $TEMPLATE_PATH" >&2
+            exit 1
+          fi
+          export REQUIREMENTS_FILE="dev_requirements.txt"
+          envsubst '${REQUIREMENTS_FILE}' < "$TEMPLATE_PATH" > Dockerfile
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.RELEASE_TAG }}
+            ${{ inputs.push_latest && format('{0}:latest', env.IMAGE_NAME) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
