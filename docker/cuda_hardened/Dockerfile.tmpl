@@ -1,17 +1,13 @@
 ARG tag_ref_name
-ARG REQUIREMENTS_FILE=requirements.txt
+ARG REQUIREMENTS_FILE=dev_requirements.txt
 
-FROM dhi.io/python:3.12 AS builder
+# ============================================================================
+# STAGE 1: CUDA Stage
+# ============================================================================
 
-ARG REQUIREMENTS_FILE
+FROM python:3.14-slim-bookworm AS cuda
 
-ENV LANG=C.UTF-8 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_PREFER_BINARY=1 \
-    DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
@@ -34,6 +30,25 @@ RUN set -eux; \
     libcusparse-12-8; \
   rm -rf /var/lib/apt/lists/*
 
+# ============================================================================
+# STAGE 2: Builder Stage (Python deps)
+# ============================================================================
+
+FROM python:3.14-slim-bookworm AS builder
+
+ARG REQUIREMENTS_FILE
+
+ENV LANG=C.UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_PREFER_BINARY=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
@@ -54,7 +69,7 @@ RUN rm -rf \
   /opt/venv/bin/wheel
 
 # ============================================================================
-# STAGE 2: Runtime Stage (Hardened + CUDA)
+# STAGE 3: Runtime Stage (Hardened + CUDA)
 # ============================================================================
 
 FROM supervisely/py-sdk-hardened:${tag_ref_name} AS runtime
@@ -62,15 +77,15 @@ FROM supervisely/py-sdk-hardened:${tag_ref_name} AS runtime
 COPY --from=builder /opt/venv /opt/venv
 
 # CUDA runtime libs from apt-installed toolkit/runtime
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublasLt.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcufft.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcurand.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcusolver.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcusparse.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvrtc.so* /usr/lib/
-COPY --from=builder /usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvJitLink.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublasLt.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcufft.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcurand.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcusolver.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libcusparse.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvrtc.so* /usr/lib/
+COPY --from=cuda /usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvJitLink.so* /usr/lib/
 
 ENV PATH="/opt/venv/bin:$PATH" \
     LD_LIBRARY_PATH="/usr/lib:/usr/local/lib"
