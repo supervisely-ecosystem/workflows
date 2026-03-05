@@ -14,8 +14,8 @@ on:
         required: false
         type: string
         default: "docker/hardened/Dockerfile.tmpl"
-      release_tag:
-        description: "Release tag name (optional; if empty, will be read from config.json .version)"
+      image_tag:
+        description: "Docker image tag (optional; if empty, will be read from config.json .version)"
         required: false
         type: string
         default: ""
@@ -41,6 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: supervisely-ecosystem/workflows
+          ref: per-app-dockerimages
           path: workflow
 
       - name: Prepare image name and release tag
@@ -59,11 +60,11 @@ jobs:
           fi
           echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
 
-          RELEASE_TAG="${{ inputs.release_tag }}"
+          RELEASE_TAG="${{ inputs.image_tag }}"
           if [ -z "$RELEASE_TAG" ]; then
             RELEASE_TAG=$(python3 workflow/scripts/resolve_release_tag.py \
               --config config.json \
-              --input-release-tag "${{ inputs.release_tag }}")
+              --input-release-tag "${{ inputs.image_tag }}")
           fi
           if [ -z "$RELEASE_TAG" ]; then
             echo "Release tag is not set. Provide inputs.release_tag or config.json .version." >&2
