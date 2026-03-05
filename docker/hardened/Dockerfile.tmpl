@@ -1,5 +1,7 @@
 ARG tag_ref_name
 ARG REQUIREMENTS_FILE=dev_requirements.txt
+ARG RUNTIME_BASE_IMAGE=py-sdk-hardened
+# ARG RUNTIME_BASE_IMAGE=py-cuda-hardened
 
 FROM python:3.14-slim-bookworm AS builder
 
@@ -47,7 +49,7 @@ RUN rm -rf \
   /opt/venv/bin/wheel
 
 # todo: remove
-# FROM supervisely/py-sdk-hardened:${tag_ref_name} AS runtime
+# FROM supervisely/{RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
 FROM supervisely/py-sdk-hardened:0.0.1 AS runtime
 
 COPY --from=builder /opt/venv /opt/venv
