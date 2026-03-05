@@ -1,7 +1,7 @@
 ARG tag_ref_name
 ARG REQUIREMENTS_FILE=dev_requirements.txt
 
-FROM dhi.io/python:3.12 AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ARG REQUIREMENTS_FILE
 
@@ -22,13 +22,23 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install pip==26.0.1
 RUN pip install setuptools==80.10.1 wheel==0.46.2
 
+# RUN pip install supervisely==${tag_ref_name}
+# todo: remove; tests only -------------------------------------
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install git+https://github.com/supervisely/supervisely.git@hardened-docker-images
+RUN pip install pillow==12.1.1 wheel==0.46.2
+# ---------------------------------------------------------------
+
 COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
 RUN rm -rf \
-  /opt/venv/lib/python3.12/site-packages/pip* \
-  /opt/venv/lib/python3.12/site-packages/wheel* \
-  /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel* \
+  /opt/venv/lib/python3.14/site-packages/pip* \
+  /opt/venv/lib/python3.14/site-packages/wheel* \
+  /opt/venv/lib/python3.14/site-packages/setuptools/_vendor/wheel* \
   /opt/venv/bin/pip \
   /opt/venv/bin/pip3 \
   /opt/venv/bin/pip3.* \
@@ -36,7 +46,9 @@ RUN rm -rf \
   /opt/venv/bin/easy_install-* \
   /opt/venv/bin/wheel
 
-FROM supervisely/py-sdk-hardened:${tag_ref_name} AS runtime
+# todo: remove
+# FROM supervisely/py-sdk-hardened:${tag_ref_name} AS runtime
+FROM supervisely/py-sdk-hardened:0.0.1 AS runtime
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
