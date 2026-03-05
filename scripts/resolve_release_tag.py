@@ -21,13 +21,12 @@ def main() -> int:
         with open(args.config, "r", encoding="utf-8") as file_handle:
             data = json.load(file_handle)
     except FileNotFoundError:
-        # todo: find instead
+        # todo: find instead?
         print("config.json not found. Provide inputs.release_tag.", file=sys.stderr)
         return 1
     except json.JSONDecodeError as exc:
         print(f"config.json is invalid JSON: {exc}", file=sys.stderr)
         return 1
-    # todo: maybe add check for "type": "app"
     docker_image = data.get("docker_image")
     if not docker_image:
         print("config.json missing .docker_image; provide inputs.release_tag", file=sys.stderr)

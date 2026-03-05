@@ -68,7 +68,7 @@ jobs:
           echo "Image name: $IMAGE_NAME"
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
-          echo "Requirements file: ${{ inputs.requirements_file }}"
+          echo "Requested requirements file: ${{ inputs.requirements_file }}"
 
       - name: Prepare tag version
         id: prep
@@ -101,6 +101,25 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve requirements file
+        run: |
+          REQUESTED_REQ_FILE="${{ inputs.requirements_file }}"
+          RESOLVED_REQ_FILE=""
+
+          if [ -f "requirements.txt" ]; then
+            RESOLVED_REQ_FILE="requirements.txt"
+          elif [ -f "$REQUESTED_REQ_FILE" ]; then
+            RESOLVED_REQ_FILE="$REQUESTED_REQ_FILE"
+          fi
+
+          if [ -z "$RESOLVED_REQ_FILE" ]; then
+            echo "No requirements file found. Checked '$REQUESTED_REQ_FILE' and 'requirements.txt'." >&2
+            exit 1
+          fi
+
+          echo "REQUIREMENTS_FILE=$RESOLVED_REQ_FILE" >> "$GITHUB_ENV"
+          echo "Resolved requirements file: $RESOLVED_REQ_FILE"
+
       - name: Delete .git folder
         run: |
           rm -rf .git
@@ -123,7 +142,7 @@ jobs:
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
-            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
@@ -146,8 +165,8 @@ jobs:
         if: ${{ inputs.cve_checks }}
         run: |
           mkdir -p audit_logs
-          if [ -s "${{ inputs.requirements_file }}" ]; then
-            python3 -m pip_audit -r "${{ inputs.requirements_file }}" --format json > audit_logs/pip_audit.json
+          if [ -s "${{ env.REQUIREMENTS_FILE }}" ]; then
+            python3 -m pip_audit -r "${{ env.REQUIREMENTS_FILE }}" --format json > audit_logs/pip_audit.json
           else
             echo "[]" > audit_logs/pip_audit.json
           fi
@@ -172,7 +191,7 @@ jobs:
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
-            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
@@ -186,7 +205,7 @@ jobs:
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
-            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
