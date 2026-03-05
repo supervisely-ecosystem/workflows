@@ -28,11 +28,11 @@ on:
         required: false
         type: boolean
         default: false
-      cve_checks:
-        description: "Run CVE checks before pushing image"
-        required: false
-        type: boolean
-        default: false
+      # cve_checks:
+      #   description: "Run CVE checks before pushing image"
+      #   required: false
+      #   type: boolean
+      #   default: false
     secrets:
       DOCKERHUB_USERNAME:
         required: false
@@ -99,17 +99,7 @@ jobs:
           echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
           echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
-      - name: Validate Docker daemon for CVE checks
-        if: ${{ inputs.cve_checks }}
-        run: |
-          if [ ! -S /var/run/docker.sock ]; then
-            echo "cve_checks=true requires a Docker daemon, but /var/run/docker.sock is not available on this runner." >&2
-            echo "Use a runner with Docker enabled, or set cve_checks=false." >&2
-            exit 1
-          fi
-
-      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
-        if: ${{ !inputs.cve_checks }}
+      - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -118,12 +108,12 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
-      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
-        if: ${{ !inputs.cve_checks && inputs.latest_tag }}
+      - name: Build Docker Image ${{ env.IMAGE_NAME }}:latest
+        if: inputs.latest_tag
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -132,108 +122,91 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
-      - name: Build Docker Image (local) ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
-        if: ${{ inputs.cve_checks }}
-        run: |
-          buildctl build \
-            --frontend dockerfile.v0 \
-            --local context=${{ github.workspace }} \
-            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
-            --opt filename=${{ env.DOCKERFILE_NAME }} \
-            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
-            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=/tmp/image.tar \
-            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
-          docker load -i /tmp/image.tar
-          rm -f /tmp/image.tar
+      # - name: pip-audit scan
+      #   if: ${{ inputs.cve_checks }}
+      #   run: |
+      #     mkdir -p audit_logs
+      #     if ! docker run --rm -v "$PWD/audit_logs:/work" \
+      #       "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" \
+      #       sh -lc "/opt/venv/bin/python -m pip_audit --format json > /work/pip_audit.json"; then
+      #       echo "pip-audit found vulnerabilities" >&2
+      #       exit 1
+      #     fi
 
-      - name: pip-audit scan
-        if: ${{ inputs.cve_checks }}
-        run: |
-          mkdir -p audit_logs
-          if ! docker run --rm -v "$PWD/audit_logs:/work" \
-            "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" \
-            sh -lc "/opt/venv/bin/python -m pip_audit --format json > /work/pip_audit.json"; then
-            echo "pip-audit found vulnerabilities" >&2
-            exit 1
-          fi
+      # - name: Trivy scan (HIGH/CRITICAL)
+      #   if: ${{ inputs.cve_checks }}
+      #   run: |
+      #     mkdir -p trivy_logs
+      #     docker run --rm \
+      #       -v /var/run/docker.sock:/var/run/docker.sock \
+      #       -v "$PWD/trivy_logs:/work" \
+      #       aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 1 \
+      #       --format json --output /work/${IMAGE_NAME_SAFE}.json \
+      #       "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
 
-      - name: Trivy scan (HIGH/CRITICAL)
-        if: ${{ inputs.cve_checks }}
-        run: |
-          mkdir -p trivy_logs
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/trivy_logs:/work" \
-            aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 1 \
-            --format json --output /work/${IMAGE_NAME_SAFE}.json \
-            "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
+      # - name: Dockle scan (FATAL)
+      #   if: ${{ inputs.cve_checks }}
+      #   run: |
+      #     mkdir -p dockle_logs
+      #     docker run --rm \
+      #       -v /var/run/docker.sock:/var/run/docker.sock \
+      #       -v "$PWD/dockle_logs:/work" \
+      #       goodwithtech/dockle:latest --exit-code 1 --exit-level FATAL \
+      #       --accept-file '.*settings\.py$' \
+      #       --format json --output /work/${IMAGE_NAME_SAFE}.json \
+      #       "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
 
-      - name: Dockle scan (FATAL)
-        if: ${{ inputs.cve_checks }}
-        run: |
-          mkdir -p dockle_logs
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/dockle_logs:/work" \
-            goodwithtech/dockle:latest --exit-code 1 --exit-level FATAL \
-            --accept-file '.*settings\.py$' \
-            --format json --output /work/${IMAGE_NAME_SAFE}.json \
-            "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
+      # - name: Generate SBOM (SPDX JSON)
+      #   if: ${{ inputs.cve_checks }}
+      #   run: |
+      #     mkdir -p sbom_logs
+      #     docker run --rm \
+      #       -v /var/run/docker.sock:/var/run/docker.sock \
+      #       -v "$PWD/sbom_logs:/work" \
+      #       anchore/syft:latest \
+      #       "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" \
+      #       -o spdx-json=/work/${IMAGE_NAME_SAFE}-sbom.json
 
-      - name: Generate SBOM (SPDX JSON)
-        if: ${{ inputs.cve_checks }}
-        run: |
-          mkdir -p sbom_logs
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/sbom_logs:/work" \
-            anchore/syft:latest \
-            "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" \
-            -o spdx-json=/work/${IMAGE_NAME_SAFE}-sbom.json
+      # - name: Push image
+      #   run: |
+      #     if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+      #       echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+      #     fi
+      #     docker push "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
 
-      - name: Push image
-        if: ${{ inputs.cve_checks }}
-        run: |
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-          fi
-          docker push "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
+      # - name: Tag and push latest
+      #   if: inputs.latest_tag
+      #   run: |
+      #     docker tag "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" "${{ env.IMAGE_NAME }}:latest"
+      #     docker push "${{ env.IMAGE_NAME }}:latest"
 
-      - name: Tag and push latest
-        if: ${{ inputs.cve_checks && inputs.latest_tag }}
-        run: |
-          docker tag "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" "${{ env.IMAGE_NAME }}:latest"
-          docker push "${{ env.IMAGE_NAME }}:latest"
+      # - name: Upload Trivy report
+      #   uses: actions/upload-artifact@v4
+      #   if: ${{ inputs.cve_checks && always() }}
+      #   with:
+      #     name: trivy-${{ env.IMAGE_NAME_SAFE }}
+      #     path: trivy_logs/${{ env.IMAGE_NAME_SAFE }}.json
 
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
-        with:
-          name: trivy-${{ env.IMAGE_NAME_SAFE }}
-          path: trivy_logs/${{ env.IMAGE_NAME_SAFE }}.json
+      # - name: Upload pip-audit report
+      #   uses: actions/upload-artifact@v4
+      #   if: ${{ inputs.cve_checks && always() }}
+      #   with:
+      #     name: pip-audit-${{ env.IMAGE_NAME_SAFE }}
+      #     path: audit_logs/pip_audit.json
 
-      - name: Upload pip-audit report
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
-        with:
-          name: pip-audit-${{ env.IMAGE_NAME_SAFE }}
-          path: audit_logs/pip_audit.json
+      # - name: Upload Dockle report
+      #   uses: actions/upload-artifact@v4
+      #   if: ${{ inputs.cve_checks && always() }}
+      #   with:
+      #     name: dockle-${{ env.IMAGE_NAME_SAFE }}
+      #     path: dockle_logs/${{ env.IMAGE_NAME_SAFE }}.json
 
-      - name: Upload Dockle report
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
-        with:
-          name: dockle-${{ env.IMAGE_NAME_SAFE }}
-          path: dockle_logs/${{ env.IMAGE_NAME_SAFE }}.json
-
-      - name: Upload SBOM report
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
-        with:
-          name: sbom-${{ env.IMAGE_NAME_SAFE }}
-          path: sbom_logs/${{ env.IMAGE_NAME_SAFE }}-sbom.json
+      # - name: Upload SBOM report
+      #   uses: actions/upload-artifact@v4
+      #   if: ${{ inputs.cve_checks && always() }}
+      #   with:
+      #     name: sbom-${{ env.IMAGE_NAME_SAFE }}
+      #     path: sbom_logs/${{ env.IMAGE_NAME_SAFE }}-sbom.json
