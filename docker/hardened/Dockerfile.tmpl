@@ -35,7 +35,7 @@ COPY --from=requirements-builder /tmp/wheels /tmp/wheels
 RUN set -eux; \
   if [ -s /tmp/requirements.txt ]; then \
     /opt/venv/bin/python -m ensurepip --upgrade; \
-    /opt/venv/bin/python -m pip install --no-cache-dir --no-index --find-links=/tmp/wheels -r /tmp/requirements.txt; \
+    /opt/venv/bin/python -m pip install --no-cache-dir --no-index /tmp/wheels/*.whl; \
     rm -rf \
       /opt/venv/lib/python*/site-packages/pip* \
       /opt/venv/lib/python*/site-packages/setuptools* \
