@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: "dev_requirements.txt"
+      runtime_base_image:
+        description: "Base image to use in Dockerfile template ARG RUNTIME_BASE_IMAGE (optional, default is set in template)"
+        required: false
+        type: string
+        default: ""
       latest_tag:
         required: false
         type: boolean
@@ -69,6 +74,12 @@ jobs:
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
           echo "Requested requirements file: ${{ inputs.requirements_file }}"
+          echo "Runtime base image: ${{ inputs.runtime_base_image }}"
+          RUNTIME_BASE_IMAGE_ARG=${{ inputs.runtime_base_image }}
+          if [ -n "$RUNTIME_BASE_IMAGE_ARG" ]; then
+            echo "Using runtime base image override: $RUNTIME_BASE_IMAGE_ARG"
+            RUNTIME_BASE_IMAGE="$RUNTIME_BASE_IMAGE_ARG"
+          fi
 
       - name: Prepare tag version
         id: prep
@@ -144,6 +155,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            --opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -165,8 +177,13 @@ jobs:
         if: ${{ inputs.cve_checks }}
         run: |
           mkdir -p audit_logs
-          if [ -s "${{ env.REQUIREMENTS_FILE }}" ]; then
-            python3 -m pip_audit -r "${{ env.REQUIREMENTS_FILE }}" --format json > audit_logs/pip_audit.json
+          syft -q "docker-archive:image.tar" -o json > audit_logs/syft-image.json
+          python3 workflow/scripts/get_image_packages.py \
+            --syft-json audit_logs/syft-image.json \
+            --output-requirements audit_logs/image_python_requirements.txt
+
+          if [ -s audit_logs/image_python_requirements.txt ]; then
+            python3 -m pip_audit -r audit_logs/image_python_requirements.txt --format json > audit_logs/pip_audit.json
           else
             echo "[]" > audit_logs/pip_audit.json
           fi
@@ -193,6 +210,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            --opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
