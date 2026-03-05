@@ -79,6 +79,8 @@ jobs:
 
       - name: Render Dockerfile from template
         run: |
+          apt-get update && apt-get install -y --no-install-recommends gettext-base \
+            && rm -rf /var/lib/apt/lists/*
           TEMPLATE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
           if [ ! -f "$TEMPLATE_PATH" ]; then
             echo "Dockerfile template not found at $TEMPLATE_PATH" >&2
