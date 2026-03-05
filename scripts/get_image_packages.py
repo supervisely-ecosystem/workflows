@@ -38,7 +38,7 @@ def main() -> int:
     lines = [f"{name}=={packages[name]}" for name in sorted(packages)]
     output_path.write_text("\n".join(lines) + ("\n" if lines else ""))
 
-    print(f"Discovered {len(lines)} Python packages in image")
+    print(f"Discovered {len(packages)} Python packages in image")
     return 0
 
 

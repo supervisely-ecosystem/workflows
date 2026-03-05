@@ -183,7 +183,11 @@ jobs:
             --output-requirements audit_logs/image_python_requirements.txt
 
           if [ -s audit_logs/image_python_requirements.txt ]; then
-            python3 -m pip_audit -r audit_logs/image_python_requirements.txt --format json > audit_logs/pip_audit.json
+            python3 -m pip_audit \
+              -r audit_logs/image_python_requirements.txt \
+              --no-deps \
+              --disable-pip \
+              --format json > audit_logs/pip_audit.json
           else
             echo "[]" > audit_logs/pip_audit.json
           fi
