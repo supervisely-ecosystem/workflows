@@ -48,9 +48,7 @@ RUN rm -rf \
   /opt/venv/bin/easy_install-* \
   /opt/venv/bin/wheel
 
-# todo: remove
-# FROM supervisely/{RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
-FROM supervisely/py-sdk-hardened:0.0.1 AS runtime
+FROM supervisely/${RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"

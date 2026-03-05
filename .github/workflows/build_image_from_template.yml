@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         default: ""
+      requirements_file:
+        description: "Requirements file path in caller repo"
+        required: false
+        type: string
+        default: "dev_requirements.txt"
       latest_tag:
         required: false
         type: boolean
@@ -63,6 +68,7 @@ jobs:
           echo "Image name: $IMAGE_NAME"
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
+          echo "Requirements file: ${{ inputs.requirements_file }}"
 
       - name: Prepare tag version
         id: prep
@@ -100,11 +106,13 @@ jobs:
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
-            --opt build-arg:REQUIREMENTS_FILE=dev_requirements.txt \
+            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }} \
+            --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=/tmp/image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+          docker load -i /tmp/image.tar
+          rm -f /tmp/image.tar
 
       - name: pip-audit scan
         if: ${{ inputs.cve_checks }}
