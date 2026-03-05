@@ -77,25 +77,25 @@ jobs:
         run: |
           rm -rf .git
 
-      - name: Render Dockerfile from template
+      - name: Prepare Dockerfile path
         run: |
-          TEMPLATE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
-          if [ ! -f "$TEMPLATE_PATH" ]; then
-            echo "Dockerfile template not found at $TEMPLATE_PATH" >&2
+          DOCKERFILE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
+          if [ ! -f "$DOCKERFILE_PATH" ]; then
+            echo "Dockerfile template not found at $DOCKERFILE_PATH" >&2
             exit 1
           fi
-          python3 workflow/scripts/render_dockerfile_template.py \
-            --template "$TEMPLATE_PATH" \
-            --output Dockerfile \
-            --requirements-file "dev_requirements.txt"
+          echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
+          echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
       - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
-            --local dockerfile=${{ github.workspace }} \
-            --opt filename=Dockerfile \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=dev_requirements.txt \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -106,7 +106,9 @@ jobs:
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
-            --local dockerfile=${{ github.workspace }} \
-            --opt filename=Dockerfile \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=dev_requirements.txt \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
