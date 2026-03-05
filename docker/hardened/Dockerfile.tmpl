@@ -3,17 +3,39 @@ ARG REQUIREMENTS_FILE=dev_requirements.txt
 ARG RUNTIME_BASE_IMAGE=py-sdk-hardened
 # ARG RUNTIME_BASE_IMAGE=py-cuda-hardened
 
+FROM python:3.14-slim-bookworm AS requirements-builder
+
+ARG REQUIREMENTS_FILE
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  git \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
+
+RUN set -eux; \
+  python -m venv /opt/venv; \
+  /opt/venv/bin/python -m ensurepip --upgrade; \
+  /opt/venv/bin/python -m pip install --no-cache-dir --upgrade pip wheel setuptools; \
+  if [ -s /tmp/requirements.txt ]; then \
+    /opt/venv/bin/python -m pip wheel --no-cache-dir -r /tmp/requirements.txt -w /tmp/wheels; \
+  else \
+    mkdir -p /tmp/wheels; \
+  fi
+
 # FROM supervisely/${RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
 FROM supervisely/py-sdk-hardened:0.0.1 AS runtime
 
 ARG REQUIREMENTS_FILE
 
 COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
+COPY --from=requirements-builder /tmp/wheels /tmp/wheels
 
 RUN set -eux; \
   if [ -s /tmp/requirements.txt ]; then \
     /opt/venv/bin/python -m ensurepip --upgrade; \
-    /opt/venv/bin/python -m pip install --no-cache-dir -r /tmp/requirements.txt; \
+    /opt/venv/bin/python -m pip install --no-cache-dir --no-index --find-links=/tmp/wheels -r /tmp/requirements.txt; \
     rm -rf \
       /opt/venv/lib/python*/site-packages/pip* \
       /opt/venv/lib/python*/site-packages/setuptools* \
@@ -28,4 +50,4 @@ RUN set -eux; \
       /opt/venv/bin/easy_install-* \
       /opt/venv/bin/wheel; \
   fi; \
-  rm -f /tmp/requirements.txt
+  rm -rf /tmp/requirements.txt /tmp/wheels
