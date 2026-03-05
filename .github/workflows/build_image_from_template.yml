@@ -99,7 +99,44 @@ jobs:
           echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
           echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
+      - name: Validate Docker daemon for CVE checks
+        if: ${{ inputs.cve_checks }}
+        run: |
+          if [ ! -S /var/run/docker.sock ]; then
+            echo "cve_checks=true requires a Docker daemon, but /var/run/docker.sock is not available on this runner." >&2
+            echo "Use a runner with Docker enabled, or set cve_checks=false." >&2
+            exit 1
+          fi
+
+      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+        if: ${{ !inputs.cve_checks }}
+        run: |
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true \
+            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+
+      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
+        if: ${{ !inputs.cve_checks && inputs.latest_tag }}
+        run: |
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+
       - name: Build Docker Image (local) ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+        if: ${{ inputs.cve_checks }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -160,6 +197,7 @@ jobs:
             -o spdx-json=/work/${IMAGE_NAME_SAFE}-sbom.json
 
       - name: Push image
+        if: ${{ inputs.cve_checks }}
         run: |
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
@@ -167,7 +205,7 @@ jobs:
           docker push "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}"
 
       - name: Tag and push latest
-        if: inputs.latest_tag
+        if: ${{ inputs.cve_checks && inputs.latest_tag }}
         run: |
           docker tag "${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}" "${{ env.IMAGE_NAME }}:latest"
           docker push "${{ env.IMAGE_NAME }}:latest"
