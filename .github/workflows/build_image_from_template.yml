@@ -175,7 +175,7 @@ jobs:
         if: ${{ inputs.cve_checks }}
         run: |
           mkdir -p dockle_logs
-          dockle --exit-code 1 --exit-level FATAL --input image.tar --accept-file '.*settings\.py$' --format json --output dockle_logs/${IMAGE_NAME_SAFE}.json
+          dockle --exit-code 1 --exit-level FATAL --input image.tar -af settings.py --format json --output dockle_logs/${IMAGE_NAME_SAFE}.json
 
       - name: Generate SBOM (SPDX JSON)
         if: ${{ inputs.cve_checks }}
