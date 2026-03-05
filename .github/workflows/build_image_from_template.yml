@@ -79,15 +79,15 @@ jobs:
 
       - name: Render Dockerfile from template
         run: |
-          apt-get update && apt-get install -y --no-install-recommends gettext-base \
-            && rm -rf /var/lib/apt/lists/*
           TEMPLATE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
           if [ ! -f "$TEMPLATE_PATH" ]; then
             echo "Dockerfile template not found at $TEMPLATE_PATH" >&2
             exit 1
           fi
-          export REQUIREMENTS_FILE="dev_requirements.txt"
-          envsubst '${REQUIREMENTS_FILE}' < "$TEMPLATE_PATH" > Dockerfile
+          python3 workflow/scripts/render_dockerfile_template.py \
+            --template "$TEMPLATE_PATH" \
+            --output Dockerfile \
+            --requirements-file "dev_requirements.txt"
 
       - name: Build Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
         run: |
