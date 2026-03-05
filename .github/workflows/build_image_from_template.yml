@@ -85,6 +85,22 @@ jobs:
           fi
           echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
 
+      - name: Validate tag does not already exist in Docker Hub
+        run: |
+          TAG_URL="https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${TAG_VERSION}"
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$TAG_URL")
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Docker image tag already exists: ${IMAGE_NAME}:${TAG_VERSION}" >&2
+            echo "Refusing to overwrite existing tag. Exiting early." >&2
+            exit 1
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "Tag is available: ${IMAGE_NAME}:${TAG_VERSION}"
+          else
+            echo "Unable to validate tag existence on Docker Hub (HTTP ${HTTP_CODE})." >&2
+            exit 1
+          fi
+
       - name: Delete .git folder
         run: |
           rm -rf .git
