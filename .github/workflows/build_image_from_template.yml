@@ -29,6 +29,11 @@ on:
         required: false
         type: string
         default: ""
+      skip_tag_check:
+        description: "Skip Docker Hub tag existence check"
+        required: false
+        type: boolean
+        default: false
       latest_tag:
         required: false
         type: boolean
@@ -101,16 +106,23 @@ jobs:
           fi
           echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
 
-      - name: Validate tag does not already exist in Docker Hub
+      - name: Validate tag in Docker Hub
         run: |
+          if [ "${{ inputs.skip_tag_check }}" = "true" ]; then
+            echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
+            echo "Docker Hub tag check skipped by input"
+            exit 0
+          fi
+
           TAG_URL="https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${TAG_VERSION}"
           HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$TAG_URL")
 
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "Docker image tag already exists: ${IMAGE_NAME}:${TAG_VERSION}" >&2
-            echo "Refusing to overwrite existing tag. Exiting early." >&2
-            exit 1
+            echo "TAG_EXISTS=true" >> "$GITHUB_ENV"
+            echo "Docker image tag already exists: ${IMAGE_NAME}:${TAG_VERSION}"
+            echo "All subsequent steps will be skipped"
           elif [ "$HTTP_CODE" = "404" ]; then
+            echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
             echo "Tag is available: ${IMAGE_NAME}:${TAG_VERSION}"
           else
             echo "Unable to validate tag existence on Docker Hub (HTTP ${HTTP_CODE})." >&2
@@ -118,6 +130,7 @@ jobs:
           fi
 
       - name: Resolve requirements file
+        if: ${{ env.TAG_EXISTS != 'true' }}
         run: |
           REQUESTED_REQ_FILE="${{ inputs.requirements_file }}"
           RESOLVED_REQ_FILE=""
@@ -137,10 +150,12 @@ jobs:
           echo "Resolved requirements file: $RESOLVED_REQ_FILE"
 
       - name: Delete .git folder
+        if: ${{ env.TAG_EXISTS != 'true' }}
         run: |
           rm -rf .git
 
       - name: Prepare Dockerfile path
+        if: ${{ env.TAG_EXISTS != 'true' }}
         run: |
           DOCKERFILE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
           if [ ! -f "$DOCKERFILE_PATH" ]; then
@@ -151,7 +166,7 @@ jobs:
           echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
       - name: Build image archive for checks
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -166,7 +181,7 @@ jobs:
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
       - name: Install scanning tools
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         env:
           DOCKLE_VERSION: 0.4.15
           SYFT_VERSION: v1.4.1
@@ -179,7 +194,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo && sudo rm -rf /var/lib/apt/lists/*
 
       - name: pip-audit scan
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           mkdir -p audit_logs
           syft -q "docker-archive:image.tar" -o json > audit_logs/syft-image.json
@@ -198,19 +213,19 @@ jobs:
           fi
 
       - name: Dockle scan on archive
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           mkdir -p dockle_logs
           dockle --exit-code 1 --exit-level FATAL --input image.tar -af settings.py --format json --output dockle_logs/${IMAGE_NAME_SAFE}.json
 
       - name: Generate SBOM (SPDX JSON)
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           mkdir -p sbom_logs
           syft -q "docker-archive:image.tar" -o "spdx-json=sbom_logs/${IMAGE_NAME_SAFE}-sbom.json"
 
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
-        if: ${{ !inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && !inputs.cve_checks }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -225,7 +240,7 @@ jobs:
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
-        if: ${{ inputs.latest_tag && !inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.latest_tag && !inputs.cve_checks }}
         run: |
           buildctl build \
             --frontend dockerfile.v0 \
@@ -238,7 +253,7 @@ jobs:
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
       - name: Push scanned image archive
-        if: ${{ inputs.cve_checks }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             skopeo copy \
@@ -252,7 +267,7 @@ jobs:
           fi
 
       - name: Tag and push latest from scanned image
-        if: ${{ inputs.cve_checks && inputs.latest_tag }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && inputs.latest_tag }}
         run: |
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             skopeo copy \
@@ -268,21 +283,21 @@ jobs:
 
       - name: Upload pip-audit report
         uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
         with:
           name: pip-audit-${{ env.IMAGE_NAME_SAFE }}
           path: audit_logs/pip_audit.json
 
       - name: Upload Dockle report
         uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
         with:
           name: dockle-${{ env.IMAGE_NAME_SAFE }}
           path: dockle_logs/${{ env.IMAGE_NAME_SAFE }}.json
 
       - name: Upload SBOM report
         uses: actions/upload-artifact@v4
-        if: ${{ inputs.cve_checks && always() }}
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
         with:
           name: sbom-${{ env.IMAGE_NAME_SAFE }}
           path: sbom_logs/${{ env.IMAGE_NAME_SAFE }}-sbom.json
