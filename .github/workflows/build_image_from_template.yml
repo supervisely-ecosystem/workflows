@@ -75,10 +75,15 @@ jobs:
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
           echo "Requested requirements file: ${{ inputs.requirements_file }}"
           echo "Runtime base image: ${{ inputs.runtime_base_image }}"
-          RUNTIME_BASE_IMAGE_ARG=${{ inputs.runtime_base_image }}
+
+      - name: Prepare runtime base image
+        run: |
+          RUNTIME_BASE_IMAGE_ARG="${{ inputs.runtime_base_image }}"
           if [ -n "$RUNTIME_BASE_IMAGE_ARG" ]; then
+            echo "RUNTIME_BASE_IMAGE=$RUNTIME_BASE_IMAGE_ARG" >> "$GITHUB_ENV"
             echo "Using runtime base image override: $RUNTIME_BASE_IMAGE_ARG"
-            RUNTIME_BASE_IMAGE="$RUNTIME_BASE_IMAGE_ARG"
+          else
+            echo "No runtime base image override provided; Dockerfile template default will be used"
           fi
 
       - name: Prepare tag version
