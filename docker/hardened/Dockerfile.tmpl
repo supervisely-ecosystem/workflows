@@ -24,8 +24,7 @@ RUN set -eux; \
     mkdir -p /tmp/wheels; \
   fi
 
-# FROM supervisely/${RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
-FROM supervisely/py-sdk-hardened:0.0.1 AS runtime
+FROM supervisely/${RUNTIME_BASE_IMAGE}:${tag_ref_name} AS runtime
 
 ARG REQUIREMENTS_FILE
 
