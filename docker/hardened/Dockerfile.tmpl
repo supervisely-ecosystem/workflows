@@ -31,11 +31,12 @@ COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 
 RUN --mount=from=requirements-builder,source=/tmp/wheels,target=/tmp/wheels,ro \
   set -eux; \
+  export PYTHONDONTWRITEBYTECODE=1; \
   if [ -s /tmp/requirements.txt ]; then \
     /opt/venv/bin/python -m ensurepip --upgrade; \
     set -- /tmp/wheels/*.whl; \
     if [ -e "$1" ]; then \
-      /opt/venv/bin/python -m pip install --no-cache-dir --no-index /tmp/wheels/*.whl; \
+      /opt/venv/bin/python -m pip install --no-cache-dir --no-compile --no-index /tmp/wheels/*.whl; \
       rm -rf \
         /opt/venv/lib/python*/site-packages/pip* \
         /opt/venv/lib/python*/site-packages/setuptools* \
@@ -52,4 +53,7 @@ RUN --mount=from=requirements-builder,source=/tmp/wheels,target=/tmp/wheels,ro \
         /opt/venv/bin/wheel; \
     fi; \
   fi; \
+  find /opt/venv -type d -name '__pycache__' -prune -exec rm -rf {} +; \
+  find /opt/venv -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete; \
+  find /opt/venv/lib/python*/site-packages -type d \( -name 'tests' -o -name 'test' \) -prune -exec rm -rf {} +; \
   rm -rf /tmp/requirements.txt

@@ -168,6 +168,11 @@ jobs:
       - name: Build image archive for checks
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -175,7 +180,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -227,6 +232,11 @@ jobs:
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
         if: ${{ env.TAG_EXISTS != 'true' && !inputs.cve_checks }}
         run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -234,7 +244,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
-            --opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -242,6 +252,11 @@ jobs:
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
         if: ${{ env.TAG_EXISTS != 'true' && inputs.latest_tag && !inputs.cve_checks }}
         run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -249,6 +264,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
