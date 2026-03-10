@@ -1,0 +1,307 @@
+name: Build App Image From Template
+run-name: Build App Image for ${{ github.repository }}
+
+on:
+  workflow_call:
+    inputs:
+      tag_version:
+        description: "Docker Image Tag (without 'v')"
+        required: false
+        type: string
+        default: ""
+      dockerfile_template_path:
+        description: "Path to Dockerfile template in this repo"
+        required: false
+        type: string
+        default: "docker/hardened/Dockerfile.tmpl"
+      image_name:
+        description: "Docker Image Name (optional)"
+        required: false
+        type: string
+        default: ""
+      requirements_file:
+        description: "Requirements file path in caller repo"
+        required: false
+        type: string
+        default: "dev_requirements.txt"
+      runtime_base_image:
+        description: "Base image to use in Dockerfile template ARG RUNTIME_BASE_IMAGE (optional, default is set in template)"
+        required: false
+        type: string
+        default: ""
+      skip_tag_check:
+        description: "Skip Docker Hub tag existence check"
+        required: false
+        type: boolean
+        default: false
+      latest_tag:
+        required: false
+        type: boolean
+        default: false
+      cve_checks:
+        description: "Run CVE checks before pushing image"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: gha-runner-supervisely-ecosystem
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: supervisely-ecosystem/workflows
+          path: workflow
+
+      - name: Info
+        run: |
+          IMAGE_NAME=${{ inputs.image_name }}
+          if [ -z "$IMAGE_NAME" ]; then
+            IMAGE_NAME=${GITHUB_REPOSITORY#*/}
+          fi
+          if [[ "$IMAGE_NAME" != supervisely/* ]]; then
+            IMAGE_NAME="supervisely/$IMAGE_NAME"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME_SAFE=${IMAGE_NAME#*/}" >> "$GITHUB_ENV"
+          echo "Image name: $IMAGE_NAME"
+          echo "Tag version: ${{ inputs.tag_version }}"
+          echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
+          echo "Requested requirements file: ${{ inputs.requirements_file }}"
+          echo "Runtime base image: ${{ inputs.runtime_base_image }}"
+
+      - name: Prepare runtime base image
+        run: |
+          RUNTIME_BASE_IMAGE_ARG="${{ inputs.runtime_base_image }}"
+          if [ -n "$RUNTIME_BASE_IMAGE_ARG" ]; then
+            echo "RUNTIME_BASE_IMAGE=$RUNTIME_BASE_IMAGE_ARG" >> "$GITHUB_ENV"
+            echo "Using runtime base image override: $RUNTIME_BASE_IMAGE_ARG"
+          else
+            echo "No runtime base image override provided; Dockerfile template default will be used"
+          fi
+
+      - name: Prepare tag version
+        id: prep
+        run: |
+          TAG_VERSION="${{ inputs.tag_version }}"
+          . $HOME/.venv_hardened/bin/activate
+          if [ -z "$TAG_VERSION" ]; then
+            TAG_VERSION=$(python3 workflow/scripts/resolve_release_tag.py \
+              --config config.json \
+              --input-release-tag "${{ inputs.tag_version }}")
+          fi
+          if [ -z "$TAG_VERSION" ]; then
+            echo "Tag version is not set. Provide inputs.tag_version or config.json .version." >&2
+            exit 1
+          fi
+          echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Validate tag in Docker Hub
+        run: |
+          if [ "${{ inputs.skip_tag_check }}" = "true" ]; then
+            echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
+            echo "Docker Hub tag check skipped by input"
+            exit 0
+          fi
+
+          TAG_URL="https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${TAG_VERSION}"
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$TAG_URL")
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "TAG_EXISTS=true" >> "$GITHUB_ENV"
+            echo "Docker image tag already exists: ${IMAGE_NAME}:${TAG_VERSION}"
+            echo "All subsequent steps will be skipped"
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
+            echo "Tag is available: ${IMAGE_NAME}:${TAG_VERSION}"
+          else
+            echo "Unable to validate tag existence on Docker Hub (HTTP ${HTTP_CODE})." >&2
+            exit 1
+          fi
+
+      - name: Resolve requirements file
+        if: ${{ env.TAG_EXISTS != 'true' }}
+        run: |
+          REQUESTED_REQ_FILE="${{ inputs.requirements_file }}"
+          RESOLVED_REQ_FILE=""
+
+          if [ -f "requirements.txt" ]; then
+            RESOLVED_REQ_FILE="requirements.txt"
+          elif [ -f "$REQUESTED_REQ_FILE" ]; then
+            RESOLVED_REQ_FILE="$REQUESTED_REQ_FILE"
+          fi
+
+          if [ -z "$RESOLVED_REQ_FILE" ]; then
+            echo "No requirements file found. Checked '$REQUESTED_REQ_FILE' and 'requirements.txt'." >&2
+            exit 1
+          fi
+
+          echo "REQUIREMENTS_FILE=$RESOLVED_REQ_FILE" >> "$GITHUB_ENV"
+          echo "Resolved requirements file: $RESOLVED_REQ_FILE"
+
+      - name: Delete .git folder
+        if: ${{ env.TAG_EXISTS != 'true' }}
+        run: |
+          rm -rf .git
+
+      - name: Prepare Dockerfile path
+        if: ${{ env.TAG_EXISTS != 'true' }}
+        run: |
+          DOCKERFILE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
+          if [ ! -f "$DOCKERFILE_PATH" ]; then
+            echo "Dockerfile template not found at $DOCKERFILE_PATH" >&2
+            exit 1
+          fi
+          echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
+          echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
+
+      - name: Build image archive for checks
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
+        run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
+            --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
+            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+
+      - name: pip-audit scan
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
+        run: |
+          mkdir -p audit_logs
+          syft -q "docker-archive:image.tar" -o json > audit_logs/syft-image.json
+          . $HOME/.venv_hardened/bin/activate
+          python3 workflow/scripts/get_image_packages.py \
+            --syft-json audit_logs/syft-image.json \
+            --output-requirements audit_logs/image_python_requirements.txt
+
+          if [ -s audit_logs/image_python_requirements.txt ]; then
+            python3 -m pip_audit \
+              -r audit_logs/image_python_requirements.txt \
+              --no-deps \
+              --disable-pip \
+              --format json > audit_logs/pip_audit.json
+          else
+            echo "[]" > audit_logs/pip_audit.json
+          fi
+
+      - name: Dockle scan on archive
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
+        run: |
+          mkdir -p dockle_logs
+          dockle --exit-code 1 --exit-level FATAL --input image.tar -af settings.py --format json --output dockle_logs/${IMAGE_NAME_SAFE}.json
+
+      - name: Generate SBOM (SPDX JSON)
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
+        run: |
+          mkdir -p sbom_logs
+          syft -q "docker-archive:image.tar" -o "spdx-json=sbom_logs/${IMAGE_NAME_SAFE}-sbom.json"
+
+      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+        if: ${{ env.TAG_EXISTS != 'true' && !inputs.cve_checks }}
+        run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
+            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+
+      - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.latest_tag && !inputs.cve_checks }}
+        run: |
+          RUNTIME_BASE_IMAGE_OPT=""
+          if [ -n "${{ env.RUNTIME_BASE_IMAGE }}" ]; then
+            RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
+          fi
+
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=${{ github.workspace }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --opt filename=${{ env.DOCKERFILE_NAME }} \
+            --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
+            --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            ${RUNTIME_BASE_IMAGE_OPT} \
+            --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
+            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+
+      - name: Push scanned image archive
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            skopeo copy \
+              --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+              docker-archive:image.tar \
+              docker://docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+          else
+            skopeo copy \
+              docker-archive:image.tar \
+              docker://docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+          fi
+
+      - name: Tag and push latest from scanned image
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && inputs.latest_tag }}
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            skopeo copy \
+              --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+              --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+              docker://docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }} \
+              docker://docker.io/${{ env.IMAGE_NAME }}:latest
+          else
+            skopeo copy \
+              docker://docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }} \
+              docker://docker.io/${{ env.IMAGE_NAME }}:latest
+          fi
+
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
+        with:
+          name: pip-audit-${{ env.IMAGE_NAME_SAFE }}
+          path: audit_logs/pip_audit.json
+
+      - name: Upload Dockle report
+        uses: actions/upload-artifact@v4
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
+        with:
+          name: dockle-${{ env.IMAGE_NAME_SAFE }}
+          path: dockle_logs/${{ env.IMAGE_NAME_SAFE }}.json
+
+      - name: Upload SBOM report
+        uses: actions/upload-artifact@v4
+        if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks && always() }}
+        with:
+          name: sbom-${{ env.IMAGE_NAME_SAFE }}
+          path: sbom_logs/${{ env.IMAGE_NAME_SAFE }}-sbom.json
