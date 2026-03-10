@@ -856,7 +856,7 @@ def validate_instance_version(
                         break
                 if sdk_version is None:
                     raise RuntimeError(
-                        f"python_sdk_version not found in the docker image labels. Labels: {', '.join(labels.keys())}"
+                        f"python_sdk_version not found in the docker image labels. Labels: {" ".join(labels.keys()) if labels else "not found"}"
                     )
                 sdk_version = sdk_version.split("+")[0].split("-")[
                     0
