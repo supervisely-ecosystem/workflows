@@ -1,6 +1,6 @@
 ARG tag_ref_name
 ARG REQUIREMENTS_FILE=dev_requirements.txt
-ARG RUNTIME_BASE_IMAGE=py-sdk-hardened
+ARG RUNTIME_BASE_IMAGE=base-py-sdk-hardened
 
 FROM python:3.14-slim-bookworm AS requirements-builder
 
