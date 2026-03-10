@@ -805,6 +805,7 @@ def validate_instance_version(
             raise RuntimeError(f"docker_image key not found in {subapp_name}")
         docker_image = config["docker_image"].replace("supervisely/", "")
         print(f"INFO: docker_image: {docker_image}")
+        print(f"INFO: caller_repo_name: {caller_repo_name}")
         image_name, image_version = docker_image.split(":")
         if image_name == caller_repo_name:
             print(
