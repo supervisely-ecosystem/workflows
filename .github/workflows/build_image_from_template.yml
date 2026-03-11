@@ -10,7 +10,7 @@ on:
         type: string
         default: ""
       dockerfile_template_path:
-        description: "Path to Dockerfile template in this repo"
+        description: "Path to Dockerfile template in caller repo (fallback: workflow default template)"
         required: false
         type: string
         default: "docker/hardened/Dockerfile.tmpl"
@@ -162,11 +162,21 @@ jobs:
       - name: Prepare Dockerfile path
         if: ${{ env.TAG_EXISTS != 'true' }}
         run: |
-          DOCKERFILE_PATH="workflow/${{ inputs.dockerfile_template_path }}"
-          if [ ! -f "$DOCKERFILE_PATH" ]; then
-            echo "Dockerfile template not found at $DOCKERFILE_PATH" >&2
+          REQUESTED_DOCKERFILE_PATH="${{ inputs.dockerfile_template_path }}"
+          DEFAULT_DOCKERFILE_PATH="workflow/docker/hardened/Dockerfile.tmpl"
+
+          if [ -f "$REQUESTED_DOCKERFILE_PATH" ]; then
+            DOCKERFILE_PATH="$REQUESTED_DOCKERFILE_PATH"
+            echo "Using caller repo Dockerfile template: $DOCKERFILE_PATH"
+          elif [ -f "$DEFAULT_DOCKERFILE_PATH" ]; then
+            DOCKERFILE_PATH="$DEFAULT_DOCKERFILE_PATH"
+            echo "Caller template not found at $REQUESTED_DOCKERFILE_PATH"
+            echo "Falling back to default Dockerfile template: $DOCKERFILE_PATH"
+          else
+            echo "Dockerfile template not found in caller repo ($REQUESTED_DOCKERFILE_PATH) and default template is missing ($DEFAULT_DOCKERFILE_PATH)" >&2
             exit 1
           fi
+
           echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
           echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
