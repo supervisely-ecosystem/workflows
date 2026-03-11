@@ -34,6 +34,11 @@ on:
         required: false
         type: string
         default: ""
+      extra_builder_libs:
+        description: "Extra libs to install in build stage, space-separated (optional)"
+        required: false
+        type: string
+        default: ""
       skip_tag_check:
         description: "Skip Docker Hub tag existence check"
         required: false
@@ -180,6 +185,7 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_VERSION }} \
+            --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
             ${RUNTIME_BASE_IMAGE_OPT} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \

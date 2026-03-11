@@ -1,15 +1,19 @@
 ARG tag_ref_name
 ARG REQUIREMENTS_FILE=dev_requirements.txt
 ARG RUNTIME_BASE_IMAGE=base-py-sdk-hardened
+ARG EXTRA_BUILDER_LIBS=""
 
 FROM python:3.14-slim-bookworm AS requirements-builder
 
 ARG REQUIREMENTS_FILE
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  ca-certificates \
-  git \
-  && rm -rf /var/lib/apt/lists/*
+ARG EXTRA_BUILDER_LIBS
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    ${EXTRA_BUILDER_LIBS}; \
+  rm -rf /var/lib/apt/lists/*
 
 COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 
