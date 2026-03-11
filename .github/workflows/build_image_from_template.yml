@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: "dev_requirements.txt"
+      config_file:
+        description: "Config file path in caller repo (optional, default is config.json)"
+        required: false
+        type: string
+        default: "config.json"
       runtime_base_image:
         description: "Base image to use in Dockerfile template ARG RUNTIME_BASE_IMAGE (optional, default is set in template)"
         required: false
@@ -92,7 +97,7 @@ jobs:
           . $HOME/.venv_hardened/bin/activate
           if [ -z "$TAG_VERSION" ]; then
             TAG_VERSION=$(python3 workflow/scripts/resolve_release_tag.py \
-              --config config.json \
+              --config ${{ inputs.config_file }} \
               --input-release-tag "${{ inputs.tag_version }}")
           fi
           if [ -z "$TAG_VERSION" ]; then
