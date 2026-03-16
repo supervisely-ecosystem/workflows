@@ -807,7 +807,7 @@ def validate_instance_version(
         print(f"INFO: docker_image: {docker_image}")
         print(f"INFO: caller_repo_name: {caller_repo_name}")
         image_name, image_version = docker_image.split(":")
-        if image_name == caller_repo_name:
+        if image_name == caller_repo_name and image_version.startswith("6.7"):
             print(
                 f"INFO: Docker image {image_name} matches caller repo name {caller_repo_name}."
             )
