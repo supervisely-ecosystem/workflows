@@ -50,6 +50,7 @@ SUBAPP_PATHS: "__ROOT_APP__"
 
 To enable branch app releases you need to add `.github/workflows/release_branch.yml` file into your app repository.
 Each time there is a push to a branch, a new release with release version and release name equal to the branch name will be created.
+Optional behavior: set `BUILD_TEST_IMAGE_ON_RELEASE: "true"` to build a `test` image before branch release, but only when `dev_requirements.txt` differs from `master`.
 
 These env vars must be configured on the GitHub Actions runner:
 
@@ -67,8 +68,62 @@ on:
     branches-ignore:
       - main
       - master
+
+env:
+  BUILD_TEST_IMAGE_ON_RELEASE: "false"
+
 jobs:
+  Check-Dev-Requirements:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.flag.outputs.enabled }}
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check feature flag
+        id: flag
+        run: |
+          if [ "${{ env.BUILD_TEST_IMAGE_ON_RELEASE }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch master branch
+        if: ${{ steps.flag.outputs.enabled == 'true' }}
+        run: |
+          git fetch origin master:refs/remotes/origin/master
+
+      - name: Check dev_requirements.txt changes
+        id: diff
+        run: |
+          if [ "${{ steps.flag.outputs.enabled }}" != "true" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet origin/master...HEAD -- dev_requirements.txt; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  Build-Test-Image:
+    needs: Check-Dev-Requirements
+    if: ${{ needs.Check-Dev-Requirements.outputs.enabled == 'true' && needs.Check-Dev-Requirements.outputs.changed == 'true' }}
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@master
+    with:
+      tag_version: "test"
+      skip_tag_check: true
+
   Supervisely-Release:
+    needs:
+      - Check-Dev-Requirements
+      - Build-Test-Image
+    if: ${{ always() && (needs.Check-Dev-Requirements.outputs.enabled != 'true' || needs.Check-Dev-Requirements.outputs.changed == 'false' || needs.Build-Test-Image.result == 'success') }}
     uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     with:
       SLUG: "${{ github.repository }}"
@@ -95,6 +150,7 @@ SUBAPP_PATHS: "__ROOT_APP__"
 ```
 
 # Models Release and Updates
+
 ## Configuration Discovery Rules
 
 For neural network applications, the workflow automatically determines **framework** and **models file path** using the following rules:
@@ -126,6 +182,7 @@ The `config.json` file must exist in the found `train` folder with the following
 ```
 
 Extracted fields:
+
 - `framework.name` → environment variable `FRAMEWORK`
 - `files.models` → environment variable `MODELS_PATH`
 
