@@ -109,7 +109,8 @@ jobs:
           . $HOME/.venv_hardened/bin/activate
           if [ -z "$TAG_VERSION" ]; then
             TAG_VERSION=$(python3 workflow/scripts/resolve_release_tag.py \
-              --config ${{ inputs.config_file }} \
+              --config "${{ inputs.config_file }}" \
+              --requirements "${{ inputs.requirements_file }}" \
               --input-release-tag "${{ inputs.tag_version }}")
           fi
           if [ -z "$TAG_VERSION" ]; then
@@ -118,7 +119,16 @@ jobs:
           fi
 
           if [ -z "$TAG_REF_NAME" ]; then
-            TAG_REF_NAME="$TAG_VERSION"
+            if [ -n "$TAG_VERSION" ]; then
+              TAG_REF_NAME=$(python3 workflow/scripts/resolve_release_tag.py \
+                --config "${{ inputs.config_file }}" \
+                --requirements "${{ inputs.requirements_file }}" \
+                --input-release-tag "" || true)
+            fi
+
+            if [ -z "$TAG_REF_NAME" ]; then
+              TAG_REF_NAME="$TAG_VERSION"
+            fi
           fi
 
           echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
