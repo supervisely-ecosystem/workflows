@@ -815,6 +815,12 @@ def validate_instance_version(
                 f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK."
             )
             sdk_version = image_version
+            if re.search(r"[^\d.]", image_version):
+                normalized_image_version = re.sub(r"[^\d.]", "", image_version)
+                print(
+                    f"INFO: Normalized docker image version for SDK check: {image_version} -> {normalized_image_version}"
+                )
+                sdk_version = normalized_image_version
         elif image_name in standard_docker_images:
             print(
                 f"INFO: Docker image {image_name} is in the list of standard docker images."
