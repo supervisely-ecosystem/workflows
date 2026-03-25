@@ -35,11 +35,7 @@ def main() -> int:
     if not version:
         print("config.json missing .version; provide inputs.release_tag", file=sys.stderr)
         return 1
-    version_parts = version.split(".")
-    new_version = version_parts[:-1] + [str(int(version_parts[-1]))]
-    new_version = ".".join(new_version)
-
-    print(new_version)
+    print(version)
     return 0
 
 
