@@ -56,9 +56,9 @@ jobs:
   Build-Test-Image:
     needs: Check-Dev-Requirements
     if: ${{ needs.Check-Dev-Requirements.outputs.enabled == 'true' && needs.Check-Dev-Requirements.outputs.changed == 'true' }}
-    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@master
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@build-test-image # TODO: set to master
     with:
-      tag_version: "test"
+      tag_ref_name: "test"
       skip_tag_check: true
 
   Supervisely-Release-Branch:
