@@ -14,6 +14,11 @@ on:
         required: false
         type: string
         default: ""
+      workflows_ref:
+        description: "Ref of supervisely-ecosystem/workflows to checkout for helper scripts"
+        required: false
+        type: string
+        default: "master"
       dockerfile_template_path:
         description: "Path to Dockerfile template in caller repo (fallback: workflow default template)"
         required: false
@@ -68,21 +73,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Resolve workflows ref
-        id: workflow_ref
-        run: |
-          WORKFLOW_REF="${{ github.workflow_ref }}"
-          RESOLVED_REF="${WORKFLOW_REF##*@}"
-          if [ -z "$RESOLVED_REF" ]; then
-            RESOLVED_REF="master"
-          fi
-          echo "ref=$RESOLVED_REF" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-          ref: ${{ steps.workflow_ref.outputs.ref }}
+          ref: ${{ inputs.workflows_ref }}
 
       - name: Info
         run: |
