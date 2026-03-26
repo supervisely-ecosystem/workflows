@@ -293,7 +293,7 @@ jobs:
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
-            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \  
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
