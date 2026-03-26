@@ -1,5 +1,5 @@
-name: Build test image and Release App Branch
-run-name: Build test image and Release "${{ github.ref_name }}" branch
+name: Build Test Image & Release App Branch
+run-name: Build Test Image & Release "${{ github.ref_name }}" branch
 on:
   push:
     branches-ignore:
