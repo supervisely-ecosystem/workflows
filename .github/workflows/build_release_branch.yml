@@ -1,0 +1,85 @@
+name: Build Test Image & Release App Branch
+run-name: Build Test Image & Release "${{ github.ref_name }}" branch
+on:
+  push:
+    branches-ignore:
+      - main
+      - master
+
+env:
+  BUILD_TEST_IMAGE_ON_RELEASE: "true"
+
+jobs:
+  Check-Dev-Requirements:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.flag.outputs.enabled }}
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check feature flag
+        id: flag
+        run: |
+          if [ "${{ env.BUILD_TEST_IMAGE_ON_RELEASE }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Test image build before branch release is enabled"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Test image build before branch release is disabled"
+          fi
+
+      - name: Fetch master branch
+        if: ${{ steps.flag.outputs.enabled == 'true' }}
+        run: |
+          git fetch origin master:refs/remotes/origin/master
+
+      - name: Check dev_requirements.txt changes
+        id: diff
+        run: |
+          if [ "${{ steps.flag.outputs.enabled }}" != "true" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping dev_requirements.txt diff because test image build is disabled"
+            exit 0
+          fi
+
+          BEFORE_SHA="${{ github.event.before }}"
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            DIFF_RANGE="$BEFORE_SHA..HEAD"
+            echo "Checking image-related changes in current push: $DIFF_RANGE"
+          else
+            DIFF_RANGE="origin/master...HEAD"
+            echo "No previous branch SHA available; checking image-related changes against master: $DIFF_RANGE"
+          fi
+
+          if git diff --quiet "$DIFF_RANGE" -- dev_requirements.txt requirements.txt docker/hardened/Dockerfile.tmpl; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No image-related files changed"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Image-related files changed"
+          fi
+
+  Build-Test-Image:
+    needs: Check-Dev-Requirements
+    if: ${{ needs.Check-Dev-Requirements.outputs.enabled == 'true' && needs.Check-Dev-Requirements.outputs.changed == 'true' }}
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@build-test-image
+    with:
+      tag_version: "test"
+      skip_tag_check: true
+      # workflows_ref: build-test-image # for testing
+
+  Supervisely-Release-Branch:
+    needs:
+      - Check-Dev-Requirements
+      - Build-Test-Image
+    if: ${{ always() && (needs.Check-Dev-Requirements.outputs.enabled != 'true' || needs.Check-Dev-Requirements.outputs.changed == 'false' || needs.Build-Test-Image.result == 'success') }}
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
+    with:
+      SLUG: "${{ github.repository }}"
+      RELEASE_VERSION: "${{ github.ref_name }}"
+      RELEASE_DESCRIPTION: "'${{ github.ref_name }}' branch release"
+      RELEASE_TYPE: "release-branch"
+      SUBAPP_PATHS: "__ROOT_APP__"
