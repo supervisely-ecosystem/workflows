@@ -65,10 +65,11 @@ jobs:
   Build-Test-Image:
     needs: Check-Dev-Requirements
     if: ${{ needs.Check-Dev-Requirements.outputs.enabled == 'true' && needs.Check-Dev-Requirements.outputs.changed == 'true' }}
-    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@build-test-image # TODO: set to master
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@build-test-image
     with:
       tag_version: "test"
       skip_tag_check: true
+      # workflows_ref: build-test-image # for testing
 
   Supervisely-Release-Branch:
     needs:
@@ -81,4 +82,4 @@ jobs:
       RELEASE_VERSION: "${{ github.ref_name }}"
       RELEASE_DESCRIPTION: "'${{ github.ref_name }}' branch release"
       RELEASE_TYPE: "release-branch"
-      SUBAPP_PATHS: "__ROOT_APP__, subapp"
+      SUBAPP_PATHS: "__ROOT_APP__"
