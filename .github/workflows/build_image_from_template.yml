@@ -68,11 +68,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Resolve workflows ref
+        id: workflow_ref
+        run: |
+          WORKFLOW_REF="${{ github.workflow_ref }}"
+          RESOLVED_REF="${WORKFLOW_REF##*@}"
+          if [ -z "$RESOLVED_REF" ]; then
+            RESOLVED_REF="master"
+          fi
+          echo "ref=$RESOLVED_REF" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ steps.workflow_ref.outputs.ref }}
 
       - name: Info
         run: |
