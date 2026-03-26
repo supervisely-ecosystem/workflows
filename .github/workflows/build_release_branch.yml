@@ -45,12 +45,21 @@ jobs:
             exit 0
           fi
 
-          if git diff --quiet origin/master...HEAD -- dev_requirements.txt; then
+          BEFORE_SHA="${{ github.event.before }}"
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            DIFF_RANGE="$BEFORE_SHA..HEAD"
+            echo "Checking image-related changes in current push: $DIFF_RANGE"
+          else
+            DIFF_RANGE="origin/master...HEAD"
+            echo "No previous branch SHA available; checking image-related changes against master: $DIFF_RANGE"
+          fi
+
+          if git diff --quiet "$DIFF_RANGE" -- dev_requirements.txt requirements.txt docker/hardened/Dockerfile.tmpl; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "dev_requirements.txt was not changed compared to master"
+            echo "No image-related files changed"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "dev_requirements.txt was changed compared to master"
+            echo "Image-related files changed"
           fi
 
   Build-Test-Image:
