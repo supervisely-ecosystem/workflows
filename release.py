@@ -7,6 +7,7 @@ import string
 import subprocess
 import sys
 import tarfile
+import time
 from pathlib import Path
 from typing import Dict, List, Literal
 
@@ -298,6 +299,64 @@ def do_release(
         }
 
 
+RELEASE_MAX_RETRIES = 3
+RELEASE_RETRY_DELAY = 5  # seconds
+
+
+def is_already_released(result: dict) -> bool:
+    """Check if the release result indicates the version is already released."""
+    status_code = result.get("Status code")
+    message = str(result.get("Message", "")).lower()
+    if status_code == 409:
+        return True
+    already_released_keywords = [
+        "already exists",
+        "already released",
+        "version already",
+        "release already",
+    ]
+    return any(kw in message for kw in already_released_keywords)
+
+
+def is_retryable_error(result: dict) -> bool:
+    """Check if the error is retryable (server errors, network issues)."""
+    status_code = result.get("Status code")
+    if status_code is None:
+        return True
+    if isinstance(status_code, int) and status_code >= 500:
+        return True
+    return False
+
+
+def do_release_with_retry(
+    max_retries=RELEASE_MAX_RETRIES,
+    retry_delay=RELEASE_RETRY_DELAY,
+    **kwargs,
+):
+    """Wrapper around do_release with retry logic for transient errors."""
+    result = None
+    delay = retry_delay
+    for attempt in range(1, max_retries + 1):
+        result = do_release(**kwargs)
+        if result["Status code"] == 200:
+            return result
+        if is_already_released(result):
+            print("[Skipped: already released]\n")
+            result["Status code"] = 200
+            result["Skipped"] = True
+            return result
+        if is_retryable_error(result) and attempt < max_retries:
+            print(
+                f"\n  Attempt {attempt}/{max_retries} failed (retryable error: {result.get('Message', 'unknown')}). "
+                f"Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+            delay *= 2
+            continue
+        break
+    return result
+
+
 def check_app_is_published(
     prod_server_address: str,
     prod_api_token: str,
@@ -406,7 +465,7 @@ def run_release(
                     end=" ",
                 )
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=server_address,
                     api_token=api_token,
@@ -422,25 +481,15 @@ def run_release(
                 )
             )
             if results[-1]["Status code"] == 200:
-                print("  [OK]\n")
-                # maybe add sly-release-tag
-                # if not is_published:
-                #     try:
-                #         tag_name = "sly-release-" + release_version
-                #         created = add_tag(
-                #             repo=repo,
-                #             tag_name=tag_name,
-                #             tag_message=release_description,
-                #             commit_sha=repo.git.rev_parse("HEAD", short=True),
-                #         )
-                #         if created:
-                #             print("Created tag: ", tag_name)
-                #     except:
-                #         print(
-                #             f'!!! Could not create tag "{tag_name}" Please add this tag manaully to avoid errors in future.'
-                #         )
+                if not results[-1].get("Skipped"):
+                    print("  [OK]\n")
             else:
                 print("[Fail]\n")
+                if len(subapp_paths) > 1:
+                    print(
+                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                        "Continuing with remaining subapps...\n"
+                    )
         else:
             if subapp_path is None:
                 print(
@@ -469,7 +518,18 @@ def run_release(
                     "Message": err_msg,
                 }
             )
-    return 0 if print_results(results) else 1
+    all_success = print_results(results)
+    if all_success:
+        return 0
+    if len(subapp_paths) > 1:
+        success_count = sum(1 for r in results if r["Status code"] == 200)
+        if success_count > 0:
+            print(
+                f"WARNING: {len(results) - success_count}/{len(results)} subapp releases failed, "
+                f"but {success_count} succeeded."
+            )
+            return 0
+    return 1
 
 
 def run_release_branch(
@@ -529,7 +589,7 @@ def run_release_branch(
                     end=" ",
                 )
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=server_address,
                     api_token=api_token,
@@ -545,9 +605,15 @@ def run_release_branch(
                 )
             )
             if results[-1]["Status code"] == 200:
-                print("  [OK]\n")
+                if not results[-1].get("Skipped"):
+                    print("  [OK]\n")
             else:
                 print("[Fail]\n")
+                if len(subapp_paths) > 1:
+                    print(
+                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                        "Continuing with remaining subapps...\n"
+                    )
 
         else:
             if subapp_path is None:
@@ -575,7 +641,18 @@ def run_release_branch(
                     "Message": err_msg,
                 }
             )
-    return 0 if print_results(results) else 1
+    all_success = print_results(results)
+    if all_success:
+        return 0
+    if len(subapp_paths) > 1:
+        success_count = sum(1 for r in results if r["Status code"] == 200)
+        if success_count > 0:
+            print(
+                f"WARNING: {len(results) - success_count}/{len(results)} subapp releases failed, "
+                f"but {success_count} succeeded."
+            )
+            return 0
+    return 1
 
 
 def publish(
@@ -1122,6 +1199,18 @@ def main():
     prod_api_token = os.getenv("SUPERVISELY_PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
+    subapp_filter = os.getenv("RELEASE_SUBAPP_FILTER", None)
+    if subapp_filter:
+        filter_paths = [p.strip(" ").strip("/") for p in subapp_filter.split(",")]
+        filtered = [p for p in subapp_paths if p in filter_paths]
+        if filtered:
+            print(f"INFO: Filtering subapps. Releasing only: {filtered}")
+            subapp_paths = filtered
+        else:
+            print(
+                f"WARNING: RELEASE_SUBAPP_FILTER={subapp_filter} did not match any subapp paths "
+                f"({subapp_paths}). Releasing all subapps."
+            )
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
     sdk_github_access_token = os.getenv("SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
