@@ -63,6 +63,11 @@ on:
         required: false
         type: boolean
         default: false
+      no_cache_requirements:
+        description: "Disable cache for requirements install step (useful for git branch dependencies)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -96,6 +101,7 @@ jobs:
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
           echo "Requested requirements file: ${{ inputs.requirements_file }}"
           echo "Runtime base image: ${{ inputs.runtime_base_image }}"
+          echo "No cache requirements: ${{ inputs.no_cache_requirements }}"
 
       - name: Prepare runtime base image
         run: |
@@ -217,6 +223,11 @@ jobs:
             RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
           fi
 
+          CACHEBUST_OPT=""
+          if [ "${{ inputs.no_cache_requirements }}" = "true" ]; then
+            CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -226,6 +237,7 @@ jobs:
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
             ${RUNTIME_BASE_IMAGE_OPT} \
+            ${CACHEBUST_OPT} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -270,6 +282,11 @@ jobs:
             RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
           fi
 
+          CACHEBUST_OPT=""
+          if [ "${{ inputs.no_cache_requirements }}" = "true" ]; then
+            CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -278,6 +295,7 @@ jobs:
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             ${RUNTIME_BASE_IMAGE_OPT} \
+            ${CACHEBUST_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -290,6 +308,11 @@ jobs:
             RUNTIME_BASE_IMAGE_OPT="--opt build-arg:RUNTIME_BASE_IMAGE=${{ env.RUNTIME_BASE_IMAGE }}"
           fi
 
+          CACHEBUST_OPT=""
+          if [ "${{ inputs.no_cache_requirements }}" = "true" ]; then
+            CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -298,6 +321,7 @@ jobs:
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             ${RUNTIME_BASE_IMAGE_OPT} \
+            ${CACHEBUST_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 

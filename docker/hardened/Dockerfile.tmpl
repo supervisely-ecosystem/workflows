@@ -17,6 +17,8 @@ RUN set -eux; \
 
 COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 
+ARG CACHEBUST=""
+
 RUN set -eux; \
   python -m venv /opt/venv; \
   /opt/venv/bin/python -m ensurepip --upgrade; \
