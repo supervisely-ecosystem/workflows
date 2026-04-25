@@ -785,6 +785,24 @@ def fetch_release_description(github_access_token, slug, release_version):
     return gh_release.body
 
 
+def parse_release_subapp_filter(release_description: str):
+    """
+    Parse `release_subapp: <subapp_path>` from the GitHub release body.
+    Returns the subapp path string or None if not specified.
+    """
+    if not release_description:
+        return None
+    match = re.search(
+        r"(?mi)^\s*release_subapp\s*:\s*([^\n\r]+?)\s*$", release_description
+    )
+    if match is None:
+        return None
+    subapp_path = match.group(1).strip().strip("/")
+    if subapp_path in ["", "__ROOT_APP__", "root"]:
+        return "__ROOT_APP__"
+    return subapp_path
+
+
 def get_sdk_versions_range(instance_version: str, versions_json: Dict):
     sorted_versions = sorted(versions_json.items(), key=lambda x: version_tuple(x[0]))
     min_sdk = None
@@ -1090,6 +1108,30 @@ def run(
     print("Release Version:\t", release_version)
     print("Release Description:\t", release_description)
     print()
+
+    if release_type == ReleaseType.RELEASE:
+        try:
+            release_body = fetch_release_description(
+                github_access_token, slug, release_version
+            )
+            release_subapp_filter = parse_release_subapp_filter(release_body)
+            if release_subapp_filter is not None:
+                filtered_subapp_paths = [
+                    p
+                    for p in subapp_paths
+                    if ("__ROOT_APP__" if p is None else p) == release_subapp_filter
+                ]
+                if len(filtered_subapp_paths) == 0:
+                    print(
+                        f"ERROR: release_subapp filter '{release_subapp_filter}' does not match any configured subapp paths."
+                    )
+                    return 1
+                print(
+                    f"INFO: release_subapp filter detected in release body. Releasing only: {release_subapp_filter}"
+                )
+                subapp_paths = filtered_subapp_paths
+        except Exception as e:
+            print(f"WARNING: Could not parse release_subapp from release body: {e}")
 
     if release_description.isspace() or release_description is None:
         print("Release description cannot be empty.")
