@@ -753,7 +753,7 @@ def validate_instance_version(
     # fetch docker_images
     try:
         standard_docker_images = fetch_docker_images(sdk_github_access_token)
-        standard_docker_images = ["base-py-sdk", *standard_docker_images]
+        standard_docker_images = ["base-py-sdk", "base-py-sdk-hardened", "base-py-cuda-hardened", *standard_docker_images]
         print(f"INFO: Standard docker images: {', '.join(standard_docker_images)}")
     except Exception as e:
         print(
