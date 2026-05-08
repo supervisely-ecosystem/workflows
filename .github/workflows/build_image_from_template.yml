@@ -225,17 +225,22 @@ jobs:
           HF_TOKEN_SECRET: ${{ secrets.HF_TOKEN }}
         run: |
           BUILD_SECRET_OPT=""
+          BUILD_SECRET_DIR=""
+          BUILD_SECRET_FILE=""
           if [ -n "$HF_TOKEN_SECRET" ]; then
             BUILD_SECRET_DIR="$RUNNER_TEMP/docker-build-secrets"
             mkdir -p "$BUILD_SECRET_DIR"
-            printf '%s' "$HF_TOKEN_SECRET" > "$BUILD_SECRET_DIR/hf_token"
-            chmod 600 "$BUILD_SECRET_DIR/hf_token"
-            BUILD_SECRET_OPT="--secret id=hf_token,src=$BUILD_SECRET_DIR/hf_token"
+            BUILD_SECRET_FILE="$BUILD_SECRET_DIR/hf_token"
+            printf '%s' "$HF_TOKEN_SECRET" > "$BUILD_SECRET_FILE"
+            chmod 600 "$BUILD_SECRET_FILE"
+            BUILD_SECRET_OPT="--secret id=hf_token,src=$BUILD_SECRET_FILE"
             echo "Hugging Face token will be provided to Docker as BuildKit secret id=hf_token"
           else
             echo "No Hugging Face token secret provided"
           fi
           echo "BUILD_SECRET_OPT=$BUILD_SECRET_OPT" >> "$GITHUB_ENV"
+          echo "BUILD_SECRET_DIR=$BUILD_SECRET_DIR" >> "$GITHUB_ENV"
+          echo "BUILD_SECRET_FILE=$BUILD_SECRET_FILE" >> "$GITHUB_ENV"
 
       - name: Build image archive for checks
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
@@ -379,6 +384,16 @@ jobs:
             skopeo copy \
               docker://docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }} \
               docker://docker.io/${{ env.IMAGE_NAME }}:latest
+          fi
+
+      - name: Cleanup Docker build secrets
+        if: ${{ always() }}
+        run: |
+          if [ -n "${BUILD_SECRET_FILE:-}" ]; then
+            rm -f "$BUILD_SECRET_FILE"
+          fi
+          if [ -n "${BUILD_SECRET_DIR:-}" ]; then
+            rmdir "$BUILD_SECRET_DIR" 2>/dev/null || true
           fi
 
       - name: Upload pip-audit report
