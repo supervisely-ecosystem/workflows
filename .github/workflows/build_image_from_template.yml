@@ -68,6 +68,10 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      HF_TOKEN:
+        description: "Hugging Face token provided to Docker builds as BuildKit secret id=hf_token"
+        required: false
 
 permissions:
   contents: read
@@ -215,6 +219,24 @@ jobs:
           echo "DOCKERFILE_DIR=$(dirname "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
           echo "DOCKERFILE_NAME=$(basename "$DOCKERFILE_PATH")" >> "$GITHUB_ENV"
 
+      - name: Prepare Docker build secrets
+        if: ${{ env.TAG_EXISTS != 'true' }}
+        env:
+          HF_TOKEN_SECRET: ${{ secrets.HF_TOKEN }}
+        run: |
+          BUILD_SECRET_OPT=""
+          if [ -n "$HF_TOKEN_SECRET" ]; then
+            BUILD_SECRET_DIR="$RUNNER_TEMP/docker-build-secrets"
+            mkdir -p "$BUILD_SECRET_DIR"
+            printf '%s' "$HF_TOKEN_SECRET" > "$BUILD_SECRET_DIR/hf_token"
+            chmod 600 "$BUILD_SECRET_DIR/hf_token"
+            BUILD_SECRET_OPT="--secret id=hf_token,src=$BUILD_SECRET_DIR/hf_token"
+            echo "Hugging Face token will be provided to Docker as BuildKit secret id=hf_token"
+          else
+            echo "No Hugging Face token secret provided"
+          fi
+          echo "BUILD_SECRET_OPT=$BUILD_SECRET_OPT" >> "$GITHUB_ENV"
+
       - name: Build image archive for checks
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
@@ -238,6 +260,7 @@ jobs:
             --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
             ${RUNTIME_BASE_IMAGE_OPT} \
             ${CACHEBUST_OPT} \
+            ${BUILD_SECRET_OPT} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -294,8 +317,10 @@ jobs:
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
+            --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
             ${RUNTIME_BASE_IMAGE_OPT} \
             ${CACHEBUST_OPT} \
+            ${BUILD_SECRET_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
             --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
@@ -316,12 +341,14 @@ jobs:
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
-            --local dockerfile=${{ env.DOCKERFILE_DIR }} \  
+            --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
+            --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
             ${RUNTIME_BASE_IMAGE_OPT} \
             ${CACHEBUST_OPT} \
+            ${BUILD_SECRET_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
             --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
 
