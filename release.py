@@ -763,6 +763,7 @@ def validate_instance_version(
     for subapp_path in subapp_paths:
         subapp_name = subapp_path if subapp_path else "root"
         caller_repo_name = slug.split("/")[1] if "/" in slug else slug
+        caller_repo_name_normalized = caller_repo_name.lower()
         print("INFO: Validating subapp:", subapp_name)
         try:
             config = get_config(subapp_path)
@@ -807,9 +808,9 @@ def validate_instance_version(
         print(f"INFO: docker_image: {docker_image}")
         print(f"INFO: caller_repo_name: {caller_repo_name}")
         image_name, image_version = docker_image.split(":")
-        if image_name == caller_repo_name and image_version.startswith("6.7"):
+        if image_name.lower() == caller_repo_name_normalized and image_version.startswith("6.7"):
             print(
-                f"INFO: Docker image {image_name} matches caller repo name {caller_repo_name}."
+                f"INFO: Docker image {image_name} matches caller repo name {caller_repo_name} case-insensitively."
             )
             print(
                 f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK."
