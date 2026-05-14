@@ -68,6 +68,11 @@ on:
         required: false
         type: boolean
         default: false
+      build_cache:
+        description: "Import/export Docker registry build cache"
+        required: false
+        type: boolean
+        default: true
     secrets:
       HF_TOKEN:
         description: "Hugging Face token provided to Docker builds as BuildKit secret id=hf_token"
@@ -107,6 +112,7 @@ jobs:
           echo "Requested requirements file: ${{ inputs.requirements_file }}"
           echo "Runtime base image: ${{ inputs.runtime_base_image }}"
           echo "No cache requirements: ${{ inputs.no_cache_requirements }}"
+          echo "Build cache: ${{ inputs.build_cache }}"
 
       - name: Prepare runtime base image
         run: |
@@ -256,6 +262,12 @@ jobs:
             CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
           fi
 
+          CACHE_OPTS=()
+          if [ "${{ inputs.build_cache }}" = "true" ]; then
+            CACHE_OPTS+=(--export-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max")
+            CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -268,8 +280,7 @@ jobs:
             ${CACHEBUST_OPT} \
             ${BUILD_SECRET_OPT} \
             --output type=docker,name=${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},dest=image.tar \
-            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+            "${CACHE_OPTS[@]}"
 
       - name: pip-audit scan
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
@@ -316,6 +327,12 @@ jobs:
             CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
           fi
 
+          CACHE_OPTS=()
+          if [ "${{ inputs.build_cache }}" = "true" ]; then
+            CACHE_OPTS+=(--export-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max")
+            CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -328,8 +345,7 @@ jobs:
             ${CACHEBUST_OPT} \
             ${BUILD_SECRET_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }},push=true  \
-            --export-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache,mode=max \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+            "${CACHE_OPTS[@]}"
 
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
         if: ${{ env.TAG_EXISTS != 'true' && inputs.latest_tag && !inputs.cve_checks }}
@@ -344,6 +360,11 @@ jobs:
             CACHEBUST_OPT="--opt build-arg:CACHEBUST=$(date +%s)"
           fi
 
+          CACHE_OPTS=()
+          if [ "${{ inputs.build_cache }}" = "true" ]; then
+            CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
@@ -356,7 +377,7 @@ jobs:
             ${CACHEBUST_OPT} \
             ${BUILD_SECRET_OPT} \
             --output type=image,name=docker.io/${{ env.IMAGE_NAME }}:latest,push=true  \
-            --import-cache type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache
+            "${CACHE_OPTS[@]}"
 
       - name: Push scanned image archive
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
