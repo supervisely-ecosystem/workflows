@@ -96,6 +96,21 @@ def parse_subapp_paths(subapps_paths: str) -> List[str]:
     return [p.strip(" ").strip("/") for p in subapps_paths.split(",")]
 
 
+def normalize_subapp_path(subapp_path) -> str:
+    subapp_path = "" if subapp_path is None else str(subapp_path)
+    subapp_path = subapp_path.strip(" ").strip("/")
+    if subapp_path in ["", "__ROOT_APP__", "root"]:
+        return "__ROOT_APP__"
+    return subapp_path
+
+
+def filter_subapp_paths(subapp_paths: List[str], subapp_filter: str) -> List[str]:
+    filter_paths = {
+        normalize_subapp_path(p) for p in subapp_filter.split(",") if p.strip(" ")
+    }
+    return [p for p in subapp_paths if normalize_subapp_path(p) in filter_paths]
+
+
 def remove_scheme(server_address):
     if server_address.startswith("http://"):
         return server_address[len("http://") :]
@@ -521,14 +536,6 @@ def run_release(
     all_success = print_results(results)
     if all_success:
         return 0
-    if len(subapp_paths) > 1:
-        success_count = sum(1 for r in results if r["Status code"] == 200)
-        if success_count > 0:
-            print(
-                f"WARNING: {len(results) - success_count}/{len(results)} subapp releases failed, "
-                f"but {success_count} succeeded."
-            )
-            return 0
     return 1
 
 
@@ -644,14 +651,6 @@ def run_release_branch(
     all_success = print_results(results)
     if all_success:
         return 0
-    if len(subapp_paths) > 1:
-        success_count = sum(1 for r in results if r["Status code"] == 200)
-        if success_count > 0:
-            print(
-                f"WARNING: {len(results) - success_count}/{len(results)} subapp releases failed, "
-                f"but {success_count} succeeded."
-            )
-            return 0
     return 1
 
 
@@ -797,10 +796,7 @@ def parse_release_subapp_filter(release_description: str):
     )
     if match is None:
         return None
-    subapp_path = match.group(1).strip().strip("/")
-    if subapp_path in ["", "__ROOT_APP__", "root"]:
-        return "__ROOT_APP__"
-    return subapp_path
+    return normalize_subapp_path(match.group(1))
 
 
 def get_sdk_versions_range(instance_version: str, versions_json: Dict):
@@ -1116,11 +1112,9 @@ def run(
             )
             release_subapp_filter = parse_release_subapp_filter(release_body)
             if release_subapp_filter is not None:
-                filtered_subapp_paths = [
-                    p
-                    for p in subapp_paths
-                    if ("__ROOT_APP__" if p is None else p) == release_subapp_filter
-                ]
+                filtered_subapp_paths = filter_subapp_paths(
+                    subapp_paths, release_subapp_filter
+                )
                 if len(filtered_subapp_paths) == 0:
                     print(
                         f"ERROR: release_subapp filter '{release_subapp_filter}' does not match any configured subapp paths."
@@ -1243,16 +1237,19 @@ def main():
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
     subapp_filter = os.getenv("RELEASE_SUBAPP_FILTER", None)
     if subapp_filter:
-        filter_paths = [p.strip(" ").strip("/") for p in subapp_filter.split(",")]
-        filtered = [p for p in subapp_paths if p in filter_paths]
+        filtered = filter_subapp_paths(subapp_paths, subapp_filter)
         if filtered:
-            print(f"INFO: Filtering subapps. Releasing only: {filtered}")
+            print(
+                "INFO: Filtering subapps. Releasing only: "
+                f"{[normalize_subapp_path(p) for p in filtered]}"
+            )
             subapp_paths = filtered
         else:
             print(
-                f"WARNING: RELEASE_SUBAPP_FILTER={subapp_filter} did not match any subapp paths "
-                f"({subapp_paths}). Releasing all subapps."
+                f"ERROR: RELEASE_SUBAPP_FILTER={subapp_filter} did not match any subapp paths "
+                f"({[normalize_subapp_path(p) for p in subapp_paths]})."
             )
+            sys.exit(1)
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
     sdk_github_access_token = os.getenv("SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)
