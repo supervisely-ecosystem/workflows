@@ -50,10 +50,6 @@ on:
         required: false
         type: boolean
         default: false
-      WORKFLOWS_REF:
-        required: false
-        type: string
-        default: "master"
       SUPERVISELY_SERVER_ADDRESS: # left here for backward compatibility, will be taken from config or env vars in release.py
         required: false
         type: string
@@ -84,7 +80,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
-          ref: ${{ inputs.WORKFLOWS_REF }}
           path: workflow
 
       - name: Supervisely Release
