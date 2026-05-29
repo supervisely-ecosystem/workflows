@@ -320,10 +320,7 @@ RELEASE_RETRY_DELAY = 5  # seconds
 
 def is_already_released(result: dict) -> bool:
     """Check if the release result indicates the version is already released."""
-    status_code = result.get("Status code")
     message = str(result.get("Message", "")).lower()
-    if status_code == 409:
-        return True
     already_released_keywords = [
         "already exists",
         "already released",
