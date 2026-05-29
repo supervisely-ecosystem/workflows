@@ -7,6 +7,7 @@ import string
 import subprocess
 import sys
 import tarfile
+import time
 from pathlib import Path
 from typing import Dict, List, Literal
 
@@ -93,6 +94,21 @@ def get_app_name(config: dict):
 
 def parse_subapp_paths(subapps_paths: str) -> List[str]:
     return [p.strip(" ").strip("/") for p in subapps_paths.split(",")]
+
+
+def normalize_subapp_path(subapp_path) -> str:
+    subapp_path = "" if subapp_path is None else str(subapp_path)
+    subapp_path = subapp_path.strip(" ").strip("/")
+    if subapp_path in ["", "__ROOT_APP__", "root"]:
+        return "__ROOT_APP__"
+    return subapp_path
+
+
+def filter_subapp_paths(subapp_paths: List[str], subapp_filter: str) -> List[str]:
+    filter_paths = {
+        normalize_subapp_path(p) for p in subapp_filter.split(",") if p.strip(" ")
+    }
+    return [p for p in subapp_paths if normalize_subapp_path(p) in filter_paths]
 
 
 def remove_scheme(server_address):
@@ -298,6 +314,61 @@ def do_release(
         }
 
 
+RELEASE_MAX_RETRIES = 3
+RELEASE_RETRY_DELAY = 5  # seconds
+
+
+def is_already_released(result: dict) -> bool:
+    """Check if the release result indicates the version is already released."""
+    message = str(result.get("Message", "")).lower()
+    already_released_keywords = [
+        "already exists",
+        "already released",
+        "version already",
+        "release already",
+    ]
+    return any(kw in message for kw in already_released_keywords)
+
+
+def is_retryable_error(result: dict) -> bool:
+    """Check if the error is retryable (server errors, network issues)."""
+    status_code = result.get("Status code")
+    if status_code is None:
+        return True
+    if isinstance(status_code, int) and status_code >= 500:
+        return True
+    return False
+
+
+def do_release_with_retry(
+    max_retries=RELEASE_MAX_RETRIES,
+    retry_delay=RELEASE_RETRY_DELAY,
+    **kwargs,
+):
+    """Wrapper around do_release with retry logic for transient errors."""
+    result = None
+    delay = retry_delay
+    for attempt in range(1, max_retries + 1):
+        result = do_release(**kwargs)
+        if result["Status code"] == 200:
+            return result
+        if is_already_released(result):
+            print("[Skipped: already released]\n")
+            result["Status code"] = 200
+            result["Skipped"] = True
+            return result
+        if is_retryable_error(result) and attempt < max_retries:
+            print(
+                f"\n  Attempt {attempt}/{max_retries} failed (retryable error: {result.get('Message', 'unknown')}). "
+                f"Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+            delay *= 2
+            continue
+        break
+    return result
+
+
 def check_app_is_published(
     prod_server_address: str,
     prod_api_token: str,
@@ -406,7 +477,7 @@ def run_release(
                     end=" ",
                 )
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=server_address,
                     api_token=api_token,
@@ -422,25 +493,15 @@ def run_release(
                 )
             )
             if results[-1]["Status code"] == 200:
-                print("  [OK]\n")
-                # maybe add sly-release-tag
-                # if not is_published:
-                #     try:
-                #         tag_name = "sly-release-" + release_version
-                #         created = add_tag(
-                #             repo=repo,
-                #             tag_name=tag_name,
-                #             tag_message=release_description,
-                #             commit_sha=repo.git.rev_parse("HEAD", short=True),
-                #         )
-                #         if created:
-                #             print("Created tag: ", tag_name)
-                #     except:
-                #         print(
-                #             f'!!! Could not create tag "{tag_name}" Please add this tag manaully to avoid errors in future.'
-                #         )
+                if not results[-1].get("Skipped"):
+                    print("  [OK]\n")
             else:
                 print("[Fail]\n")
+                if len(subapp_paths) > 1:
+                    print(
+                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                        "Continuing with remaining subapps...\n"
+                    )
         else:
             if subapp_path is None:
                 print(
@@ -469,7 +530,10 @@ def run_release(
                     "Message": err_msg,
                 }
             )
-    return 0 if print_results(results) else 1
+    all_success = print_results(results)
+    if all_success:
+        return 0
+    return 1
 
 
 def run_release_branch(
@@ -529,7 +593,7 @@ def run_release_branch(
                     end=" ",
                 )
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=server_address,
                     api_token=api_token,
@@ -545,9 +609,15 @@ def run_release_branch(
                 )
             )
             if results[-1]["Status code"] == 200:
-                print("  [OK]\n")
+                if not results[-1].get("Skipped"):
+                    print("  [OK]\n")
             else:
                 print("[Fail]\n")
+                if len(subapp_paths) > 1:
+                    print(
+                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                        "Continuing with remaining subapps...\n"
+                    )
 
         else:
             if subapp_path is None:
@@ -575,7 +645,10 @@ def run_release_branch(
                     "Message": err_msg,
                 }
             )
-    return 0 if print_results(results) else 1
+    all_success = print_results(results)
+    if all_success:
+        return 0
+    return 1
 
 
 def publish(
@@ -706,6 +779,21 @@ def fetch_release_description(github_access_token, slug, release_version):
     gh_repo = GH.get_repo(slug)
     gh_release = gh_repo.get_release(release_version)
     return gh_release.body
+
+
+def parse_release_subapp_filter(release_description: str):
+    """
+    Parse `release_subapp: <subapp_path>` from the GitHub release body.
+    Returns the subapp path string or None if not specified.
+    """
+    if not release_description:
+        return None
+    match = re.search(
+        r"(?mi)^\s*release_subapp\s*:\s*([^\n\r]+?)\s*$", release_description
+    )
+    if match is None:
+        return None
+    return normalize_subapp_path(match.group(1))
 
 
 def get_sdk_versions_range(instance_version: str, versions_json: Dict):
@@ -1015,6 +1103,28 @@ def run(
     print("Release Description:\t", release_description)
     print()
 
+    if release_type == ReleaseType.RELEASE:
+        try:
+            release_body = fetch_release_description(
+                github_access_token, slug, release_version
+            )
+            release_subapp_filter = parse_release_subapp_filter(release_body)
+            if release_subapp_filter is not None:
+                filtered_subapp_paths = filter_subapp_paths(
+                    subapp_paths, release_subapp_filter
+                )
+                if len(filtered_subapp_paths) == 0:
+                    print(
+                        f"ERROR: release_subapp filter '{release_subapp_filter}' does not match any configured subapp paths."
+                    )
+                    return 1
+                print(
+                    f"INFO: release_subapp filter detected in release body. Releasing only: {release_subapp_filter}"
+                )
+                subapp_paths = filtered_subapp_paths
+        except Exception as e:
+            print(f"WARNING: Could not parse release_subapp from release body: {e}")
+
     if release_description.isspace() or release_description is None:
         print("Release description cannot be empty.")
         return 1
@@ -1123,6 +1233,21 @@ def main():
     prod_api_token = os.getenv("SUPERVISELY_PROD_API_TOKEN", None)
     slug = os.getenv("SLUG", None)
     subapp_paths = parse_subapp_paths(os.getenv("SUBAPP_PATHS", []))
+    subapp_filter = os.getenv("RELEASE_SUBAPP_FILTER", None)
+    if subapp_filter:
+        filtered = filter_subapp_paths(subapp_paths, subapp_filter)
+        if filtered:
+            print(
+                "INFO: Filtering subapps. Releasing only: "
+                f"{[normalize_subapp_path(p) for p in filtered]}"
+            )
+            subapp_paths = filtered
+        else:
+            print(
+                f"ERROR: RELEASE_SUBAPP_FILTER={subapp_filter} did not match any subapp paths "
+                f"({[normalize_subapp_path(p) for p in subapp_paths]})."
+            )
+            sys.exit(1)
     github_access_token = os.getenv("SUPERVISELY_GITHUB_ACCESS_TOKEN", None)
     sdk_github_access_token = os.getenv("SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN", None)
     release_version = os.getenv("RELEASE_VERSION", None)

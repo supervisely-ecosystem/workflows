@@ -1,6 +1,13 @@
 name: Publish App to Production
 run-name: Publish App to Production
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      RELEASE_SUBAPP_FILTER:
+        description: "Publish only matching subapp path (for example: train, serve, or __ROOT_APP__)"
+        required: false
+        type: string
+        default: ""
 jobs:
   Supervisely-Publish:
     uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
@@ -10,5 +17,6 @@ jobs:
       RELEASE_DESCRIPTION: ""
       RELEASE_TYPE: "publish"
       SUBAPP_PATHS: "__ROOT_APP__, subapp"
+      RELEASE_SUBAPP_FILTER: "${{ inputs.RELEASE_SUBAPP_FILTER || '' }}"
       MODELS_PATH: ""
       FRAMEWORK: ""
