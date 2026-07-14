@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: "docker/hardened/Dockerfile.tmpl"
+      docker_target:
+        description: "Optional Dockerfile target stage to build"
+        required: false
+        type: string
+        default: ""
       image_name:
         description: "Docker Image Name (optional)"
         required: false
@@ -109,6 +114,7 @@ jobs:
           echo "Tag version: ${{ inputs.tag_version }}"
           echo "Tag ref name: ${{ inputs.tag_ref_name }}"
           echo "Dockerfile template path: ${{ inputs.dockerfile_template_path }}"
+          echo "Docker target: ${{ inputs.docker_target }}"
           echo "Requested requirements file: ${{ inputs.requirements_file }}"
           echo "Runtime base image: ${{ inputs.runtime_base_image }}"
           echo "No cache requirements: ${{ inputs.no_cache_requirements }}"
@@ -268,11 +274,17 @@ jobs:
             CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
           fi
 
+          DOCKER_TARGET_OPT=""
+          if [ -n "${{ inputs.docker_target }}" ]; then
+            DOCKER_TARGET_OPT="--opt target=${{ inputs.docker_target }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
+            ${DOCKER_TARGET_OPT} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
@@ -333,11 +345,17 @@ jobs:
             CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
           fi
 
+          DOCKER_TARGET_OPT=""
+          if [ -n "${{ inputs.docker_target }}" ]; then
+            DOCKER_TARGET_OPT="--opt target=${{ inputs.docker_target }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
+            ${DOCKER_TARGET_OPT} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
@@ -365,11 +383,17 @@ jobs:
             CACHE_OPTS+=(--import-cache "type=registry,ref=docker.io/${{ env.IMAGE_NAME }}:buildcache")
           fi
 
+          DOCKER_TARGET_OPT=""
+          if [ -n "${{ inputs.docker_target }}" ]; then
+            DOCKER_TARGET_OPT="--opt target=${{ inputs.docker_target }}"
+          fi
+
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=${{ github.workspace }} \
             --local dockerfile=${{ env.DOCKERFILE_DIR }} \
             --opt filename=${{ env.DOCKERFILE_NAME }} \
+            ${DOCKER_TARGET_OPT} \
             --opt build-arg:REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }} \
             --opt build-arg:tag_ref_name=${{ env.TAG_REF_NAME }} \
             --opt build-arg:EXTRA_BUILDER_LIBS="${{ inputs.extra_builder_libs }}" \
