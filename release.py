@@ -119,8 +119,13 @@ def remove_scheme(server_address):
     return server_address
 
 
+def is_success(result: dict) -> bool:
+    """A release result counts as successful only if do_release_with_retry/do_release said so."""
+    return bool(result.get("Success"))
+
+
 def print_results(results):
-    success_count = sum(1 for res in results if res["Status code"] == 200)
+    success_count = sum(1 for res in results if is_success(res))
     print(f"Total: {len(results)} releases. Success: {success_count}/{len(results)}")
     if success_count != len(results):
         print("Results:")
@@ -128,7 +133,7 @@ def print_results(results):
             f'{"Result".ljust(10)}{"Release".ljust(30)}{"App name".ljust(20)}{"App path".ljust(20)}{"Status code".ljust(15)}Message'
         )
         for result in results:
-            success = "[OK]" if result["Status code"] == 200 else "[FAIL]"
+            success = "[OK]" if is_success(result) else "[FAIL]"
             app_path = result["App path"]
             if app_path is None:
                 app_path = "__ROOT_APP__"
@@ -296,12 +301,14 @@ def do_release(
             files=files,
         )
 
+        body = response_body(response)
         return {
             "App name": app_name,
             "App path": subapp_path,
             "Release": f"{release_version} ({release_name})",
             "Status code": response.status_code,
-            "Message": response.json(),
+            "Message": body,
+            "Success": is_successful_response(response.status_code, body),
         }
 
     except Exception as e:
@@ -311,23 +318,56 @@ def do_release(
             "Release": f"{release_version} ({release_name})",
             "Status code": None,
             "Message": str(e),
+            "Success": False,
         }
+
+
+def response_body(response):
+    """JSON body of the release response, or (part of) its text if it is not JSON."""
+    try:
+        return response.json()
+    except ValueError:
+        return str(getattr(response, "text", ""))[:1000]
+
+
+def is_successful_response(status_code, body) -> bool:
+    """Same rule as the SDK CLI (supervisely/cli/release/run.py): HTTP 200 *and* "success": true."""
+    return status_code == 200 and isinstance(body, dict) and body.get("success") is True
 
 
 RELEASE_MAX_RETRIES = 3
 RELEASE_RETRY_DELAY = 5  # seconds
 
 
+# The SDK CLI treats a release as a duplicate when details.message starts with
+# "version" and ends with "already exists". Accept the same shape (plus
+# "release ... already released"), but only about a version/release: other
+# conflicts such as "module with this slug already exists" are real errors.
+_ALREADY_RELEASED_RE = re.compile(
+    r"^\s*(app\s+)?(version|release)\b.*\balready\s+(exists|released)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _server_error_message(body):
+    if not isinstance(body, dict):
+        return None
+    details = body.get("details")
+    if isinstance(details, dict) and isinstance(details.get("message"), str):
+        return details["message"]
+    for key in ("message", "error"):
+        if isinstance(body.get(key), str):
+            return body[key]
+    return None
+
+
 def is_already_released(result: dict) -> bool:
-    """Check if the release result indicates the version is already released."""
-    message = str(result.get("Message", "")).lower()
-    already_released_keywords = [
-        "already exists",
-        "already released",
-        "version already",
-        "release already",
-    ]
-    return any(kw in message for kw in already_released_keywords)
+    """Check if the server answered that this version is already released."""
+    if result.get("Status code") is None:
+        # exception text, not a server answer
+        return False
+    message = _server_error_message(result.get("Message"))
+    return message is not None and _ALREADY_RELEASED_RE.search(message) is not None
 
 
 def is_retryable_error(result: dict) -> bool:
@@ -350,11 +390,11 @@ def do_release_with_retry(
     delay = retry_delay
     for attempt in range(1, max_retries + 1):
         result = do_release(**kwargs)
-        if result["Status code"] == 200:
+        if is_success(result):
             return result
         if is_already_released(result):
             print("[Skipped: already released]\n")
-            result["Status code"] = 200
+            result["Success"] = True
             result["Skipped"] = True
             return result
         if is_retryable_error(result) and attempt < max_retries:
@@ -492,7 +532,7 @@ def run_release(
                     archive_only_config=archive_only_config,
                 )
             )
-            if results[-1]["Status code"] == 200:
+            if is_success(results[-1]):
                 if not results[-1].get("Skipped"):
                     print("  [OK]\n")
             else:
@@ -608,7 +648,7 @@ def run_release_branch(
                     archive_only_config=archive_only_config,
                 )
             )
-            if results[-1]["Status code"] == 200:
+            if is_success(results[-1]):
                 if not results[-1].get("Skipped"):
                     print("  [OK]\n")
             else:
@@ -726,7 +766,7 @@ def publish(
                 )
             )
             # if any of the releases is successful, consider the whole app release successful
-            success = success or results[-1]["Status code"] == 200
+            success = success or is_success(results[-1])
         if success:
             print("  [OK]\n")
         else:
