@@ -505,7 +505,10 @@ def run_release(
         print("Release version is not valid. Should be in semver format (v1.2.3).")
         return 1
 
-    results = []
+    # Pre-flight: decide where every subapp goes before uploading anything, so
+    # that a failed production check on subapp N does not leave subapps
+    # 1..N-1 released to production while the rest stay on the old version.
+    routing = []
     for subapp_path in subapp_paths:
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
@@ -513,64 +516,13 @@ def run_release(
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is None:
-            if is_published:
-                server_address = prod_server_address
-                api_token = prod_api_token
-                share = False
-            else:
-                server_address = dev_server_address
-                api_token = private_dev_api_token
-                share = True
+        routing.append((subapp_path, is_published, err_msg))
+
+    if any(err_msg is not None for _, _, err_msg in routing):
+        results = []
+        for subapp_path, _, err_msg in routing:
             if subapp_path is None:
-                print(
-                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
-                        53
-                    ),
-                    end=" ",
-                )
-            else:
-                print(
-                    (
-                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
-                            :50
-                        ]
-                        + "..."
-                    ).ljust(53),
-                    end=" ",
-                )
-            results.append(
-                do_release_with_retry(
-                    repo=repo,
-                    server_address=server_address,
-                    api_token=api_token,
-                    slug=slug,
-                    subapp_path=subapp_path,
-                    release_version=release_version,
-                    release_name=release_description,
-                    add_slug=True,
-                    repo_url=repo_url,
-                    created_at=None,
-                    share=share,
-                    archive_only_config=archive_only_config,
-                )
-            )
-            if is_success(results[-1]):
-                if not results[-1].get("Skipped"):
-                    print("  [OK]\n")
-            else:
-                print("[Fail]\n")
-                if len(subapp_paths) > 1:
-                    print(
-                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
-                        "Continuing with remaining subapps...\n"
-                    )
-        else:
-            if subapp_path is None:
-                print(
-                    "Releasing root app Failed...".ljust(53),
-                    end=" ",
-                )
+                print("Releasing root app Failed...".ljust(53), end=" ")
             else:
                 print(
                     (f'Releasing subapp at "{subapp_path}" Failed'[:50] + "...").ljust(
@@ -590,9 +542,74 @@ def run_release(
                     "App path": subapp_path,
                     "Release": f"{release_version} ({release_description})",
                     "Status code": None,
-                    "Message": err_msg,
+                    "Message": err_msg
+                    or "Not released: the production check failed for another subapp.",
+                    "Success": False,
                 }
             )
+        print(
+            "ERROR: Could not determine the target instance for every subapp. "
+            "Nothing was released; re-run the release when production is reachable.\n"
+        )
+        print_results(results)
+        return 1
+
+    results = []
+    for subapp_path, is_published, _ in routing:
+        if is_published:
+            server_address = prod_server_address
+            api_token = prod_api_token
+            share = False
+        else:
+            server_address = dev_server_address
+            api_token = private_dev_api_token
+            share = True
+            print(
+                f'INFO: Subapp "{subapp_path or "__ROOT_APP__"}" is not published on '
+                f"{remove_scheme(prod_server_address)} (not found); releasing to "
+                f"{remove_scheme(server_address or '')} and sharing it."
+            )
+        if subapp_path is None:
+            print(
+                f"Releasing root app to {remove_scheme(server_address)}...".ljust(53),
+                end=" ",
+            )
+        else:
+            print(
+                (
+                    f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                        :50
+                    ]
+                    + "..."
+                ).ljust(53),
+                end=" ",
+            )
+        results.append(
+            do_release_with_retry(
+                repo=repo,
+                server_address=server_address,
+                api_token=api_token,
+                slug=slug,
+                subapp_path=subapp_path,
+                release_version=release_version,
+                release_name=release_description,
+                add_slug=True,
+                repo_url=repo_url,
+                created_at=None,
+                share=share,
+                archive_only_config=archive_only_config,
+            )
+        )
+        if is_success(results[-1]):
+            if not results[-1].get("Skipped"):
+                print("  [OK]\n")
+        else:
+            print("[Fail]\n")
+            if len(subapp_paths) > 1:
+                print(
+                    f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                    "Continuing with remaining subapps...\n"
+                )
     all_success = print_results(results)
     if all_success:
         return 0
