@@ -78,7 +78,9 @@ jobs:
         run: |
           if [ -n "${{ inputs.sdk_version }}" ]; then
             sed -i.bak -E '/LABEL (python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=/d' "${{ inputs.dockerfile_path }}"
-            echo "LABEL supervisely-sdk-version=${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
+            # leading newline: a Dockerfile without a trailing newline would otherwise
+            # get the LABEL glued onto its last instruction
+            printf '\nLABEL supervisely-sdk-version=%s\n' "${{ inputs.sdk_version }}" >> "${{ inputs.dockerfile_path }}"
             echo "Supervisely SDK version: ${{ inputs.sdk_version }}"
           else
             SDK_VERSION=$(grep -E '^LABEL +(python_sdk_version|python-sdk-version|supervisely-sdk-version|supervisely_sdk_version)=' "${{ inputs.dockerfile_path }}" | awk -F= '{print $2}' | tr -d '\"')
