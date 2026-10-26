@@ -77,3 +77,12 @@ def test_real_requirements_installed_and_pip_removed(base_image, tmp_path):
         assert run_in(tag, PIP_PRESENT).stdout.strip() == "0"
     finally:
         docker("image", "rm", "-f", tag)
+
+
+def test_empty_requirements_file_builds(base_image, tmp_path):
+    """The workflow now substitutes an empty file when an app has no requirements file."""
+    tag = build_app(tmp_path, "")
+    try:
+        assert run_in(tag, PIP_PRESENT).stdout.strip() == "0"
+    finally:
+        docker("image", "rm", "-f", tag)

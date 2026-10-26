@@ -207,19 +207,32 @@ jobs:
 
       - name: Resolve requirements file
         if: ${{ env.TAG_EXISTS != 'true' }}
+        env:
+          REQUESTED_REQ_FILE: ${{ inputs.requirements_file }}
         run: |
-          REQUESTED_REQ_FILE="${{ inputs.requirements_file }}"
+          DEFAULT_REQ_FILE="dev_requirements.txt"
           RESOLVED_REQ_FILE=""
 
-          if [ -f "requirements.txt" ]; then
+          if [ "$REQUESTED_REQ_FILE" != "$DEFAULT_REQ_FILE" ] && [ -f "$REQUESTED_REQ_FILE" ]; then
+            # an explicitly requested file (e.g. serve/dev_requirements.txt) wins
+            RESOLVED_REQ_FILE="$REQUESTED_REQ_FILE"
+          elif [ -f "requirements.txt" ]; then
+            # legacy precedence, kept for callers that use the default input
             RESOLVED_REQ_FILE="requirements.txt"
           elif [ -f "$REQUESTED_REQ_FILE" ]; then
             RESOLVED_REQ_FILE="$REQUESTED_REQ_FILE"
           fi
 
           if [ -z "$RESOLVED_REQ_FILE" ]; then
-            echo "No requirements file found. Checked '$REQUESTED_REQ_FILE' and 'requirements.txt'." >&2
-            exit 1
+            if [ "$REQUESTED_REQ_FILE" != "$DEFAULT_REQ_FILE" ]; then
+              echo "Requested requirements file '$REQUESTED_REQ_FILE' not found (and no requirements.txt)." >&2
+              exit 1
+            fi
+            # no requirements at all: build the base image with nothing added
+            # instead of failing (Supervisely-Release needs this job)
+            RESOLVED_REQ_FILE="sly_empty_requirements.txt"
+            : > "$RESOLVED_REQ_FILE"
+            echo "No requirements file found ('$REQUESTED_REQ_FILE', 'requirements.txt'); using an empty one."
           fi
 
           echo "REQUIREMENTS_FILE=$RESOLVED_REQ_FILE" >> "$GITHUB_ENV"
