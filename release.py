@@ -946,8 +946,8 @@ def validate_instance_version(
             f"ERROR: versions.json not found in root and supervisely/ subdirectory. Exception: {e}"
         )
         raise
-    release_description = fetch_release_description(
-        github_access_token, slug, release_version
+    release_description = (
+        fetch_release_description(github_access_token, slug, release_version) or ""
     )
     # fetch docker_images
     try:
@@ -1130,8 +1130,8 @@ def need_validate_instance_version(
         True,
     ]:
         return False
-    release_description = fetch_release_description(
-        github_access_token, slug, release_version
+    release_description = (
+        fetch_release_description(github_access_token, slug, release_version) or ""
     )
     if release_description.find("skip_sdk_version_validation") != -1:
         return False

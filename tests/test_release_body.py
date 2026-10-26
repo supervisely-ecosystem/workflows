@@ -28,3 +28,10 @@ def test_skip_marker_in_body_still_works(release_module, github_release_body, mo
     monkeypatch.delenv("SKIP_INSTANCE_VERSION_VALIDATION", raising=False)
     github_release_body("notes\nskip_sdk_version_validation\n")
     assert release_module.need_validate_instance_version("release", "tok", "org/app", "v1.0.0") is False
+
+
+def test_call_sites_tolerate_none_even_if_fetch_returns_it(release_module, monkeypatch):
+    """Audit repro B3 patches fetch_release_description itself to return None."""
+    monkeypatch.delenv("SKIP_INSTANCE_VERSION_VALIDATION", raising=False)
+    monkeypatch.setattr(release_module, "fetch_release_description", lambda *a: None)
+    assert release_module.need_validate_instance_version("release", "tok", "org/app", "v1.0.0") is True
