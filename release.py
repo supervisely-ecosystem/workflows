@@ -1035,8 +1035,15 @@ def validate_docker_image(subapp_paths):
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
-        if config.get("type", None) in ["project", "collection", "client_side_app"]:
-            return
+        app_type = config.get("type", None)
+        if app_type in ["project", "collection", "client_side_app"]:
+            # these types have no docker image; keep checking the remaining subapps
+            print(f"INFO: App {subapp_name} is a {app_type}. Skipping docker image validation.")
+            continue
+        if "docker_image" not in config:
+            raise RuntimeError(
+                f"docker_image key not found in config.json of subapp {subapp_name}"
+            )
         docker_image = config["docker_image"].replace("supervisely/", "")
         print(f"INFO: Docker image to validate: {docker_image}")
         skopeo_result = subprocess.run(
