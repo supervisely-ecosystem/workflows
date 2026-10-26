@@ -882,6 +882,14 @@ def parse_release_subapp_filter(release_description: str):
     return normalize_subapp_path(match.group(1))
 
 
+def parse_sdk_version_from_description(release_description: str):
+    """Find `python_sdk_version: X.Y.Z` (or `= X.Y.Z`) on any line of the release body."""
+    match = re.search(
+        r"python_sdk_version\s*[:=]\s*v?(\d+(?:\.\d+){1,2})\b", release_description or ""
+    )
+    return match.group(1) if match else None
+
+
 def get_sdk_versions_range(instance_version: str, versions_json: Dict):
     sorted_versions = sorted(versions_json.items(), key=lambda x: version_tuple(x[0]))
     min_sdk = None
@@ -1055,7 +1063,8 @@ def validate_instance_version(
                     "INFO: Will read release description to find the appropriate SDK version."
                 )
                 print("INFO: Release description:", release_description)
-                if release_description.find("python_sdk_version") == -1:
+                sdk_version = parse_sdk_version_from_description(release_description)
+                if sdk_version is None:
                     print(
                         "ERROR: python_sdk_version not found in the release description."
                     )
@@ -1065,10 +1074,13 @@ def validate_instance_version(
                     raise RuntimeError(
                         "python_sdk_version not found in the release description."
                     )
-                sdk_version = release_description.split("python_sdk_version:")[1].strip(
-                    " \n"
-                )
         print(f"INFO: SDK version to check: {sdk_version}")
+        if not re.fullmatch(r"v?\d+(\.\d+)*", str(sdk_version)):
+            raise ValueError(
+                f"Cannot use '{sdk_version}' (from docker image {config['docker_image']}) "
+                "as a Supervisely SDK version. Use a numeric SDK version tag "
+                "(e.g. 6.73.10), or set the python_sdk_version label on the image."
+            )
         # validate version
         if not is_valid_versions(instance_version, sdk_version, versions_json):
             min_sdk_ver, max_sdk_ver = get_sdk_versions_range(
@@ -1256,6 +1268,7 @@ def run(
             )
         except Exception as e:
             print("Error validating instance version")
+            print(f"ERROR: {e}")
             return 1
 
     if release_type == ReleaseType.RELEASE:
