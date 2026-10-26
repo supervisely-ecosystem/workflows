@@ -839,7 +839,8 @@ def fetch_release_description(github_access_token, slug, release_version):
     GH = Github(auth=gh_auth)
     gh_repo = GH.get_repo(slug)
     gh_release = gh_repo.get_release(release_version)
-    return gh_release.body
+    # releases created via the API/CLI without notes have "body": null
+    return gh_release.body or ""
 
 
 def parse_release_subapp_filter(release_description: str):
