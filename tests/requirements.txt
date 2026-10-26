@@ -1,0 +1,8 @@
+# Test-only dependencies. The real Supervisely SDK is optional: tests/conftest.py
+# installs stubs for the few SDK helpers release.py imports when it is missing.
+pytest>=8
+PyGithub==2.8.1
+GitPython>=3.1
+requests>=2.31
+python-dotenv>=1.0
+PyYAML>=6
