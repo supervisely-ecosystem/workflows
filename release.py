@@ -703,8 +703,14 @@ def publish(
 ):
     """
     Creates a release for every release in the repository.
+
+    Exit code 0 only if every subapp that is not yet on production had *all* of
+    its GitHub releases uploaded (duplicates count as done) and at least one
+    subapp was actually published. A failed production check is a failure; a
+    subapp that is already on production is skipped.
     """
     all_success = True
+    published_any = False
     for subapp_path in subapp_paths:
         app_key = get_appKey(repo, subapp_path, repo_url)
 
@@ -721,14 +727,14 @@ def publish(
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is not None or is_published:
+        if err_msg is not None:
             print("[Fail]\n")
+            all_success = False
             try:
                 config = get_config(subapp_path)
                 app_name = get_app_name(config)
             except:
                 app_name = "Unknown"
-            message = "App is already published to production. This action only works for apps that are not published to production."
             print_results(
                 [
                     {
@@ -736,21 +742,32 @@ def publish(
                         "App path": subapp_path,
                         "Release": "All",
                         "Status code": None,
-                        "Message": message if err_msg is None else err_msg,
+                        "Message": err_msg,
+                        "Success": False,
                     }
                 ]
             )
             continue
+        if is_published:
+            print("[Skipped]\n")
+            print(
+                "  App is already published to production. This action only works for apps that are not published to production.\n"
+            )
+            continue
+        if not gh_releases:
+            print("[Fail]\n")
+            print("  No published GitHub releases with a vX.Y.Z tag found: nothing to publish.\n")
+            all_success = False
+            continue
 
         results = []
-        success = False
         for gh_release in gh_releases:
             repo.git.checkout(gh_release.tag_name)
             release_version = gh_release.tag_name
             if release_version.startswith("sly-release-"):
                 release_version = release_version[len("sly-release-") :]
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=prod_server_address,
                     api_token=prod_api_token,
@@ -765,16 +782,20 @@ def publish(
                     archive_only_config=archive_only_config,
                 )
             )
-            # if any of the releases is successful, consider the whole app release successful
-            success = success or is_success(results[-1])
+        # every historical release must reach production, otherwise users get a
+        # partial version list
+        success = all(is_success(r) for r in results)
         if success:
             print("  [OK]\n")
+            published_any = True
         else:
             print("[Fail]\n")
 
-        # if all of the apps released successfully, consider the whole release successful
         all_success = all_success and success
         print_results(results)
+    if all_success and not published_any:
+        print("ERROR: Nothing was published: every subapp is already on production.")
+        return 1
     return 0 if all_success else 1
 
 
