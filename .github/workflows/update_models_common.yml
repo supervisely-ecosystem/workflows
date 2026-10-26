@@ -48,4 +48,4 @@ jobs:
           python workflow/update_models.py
         env:
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
-          SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
+          SEG_MODELS_PATH: ${{ inputs.SEG_MODELS_PATH }}

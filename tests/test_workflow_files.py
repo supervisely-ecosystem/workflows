@@ -37,3 +37,29 @@ def test_helper_checkout_uses_existing_ref(path):
         with_ = step.get("with", {}) or {}
         if uses.startswith("actions/checkout") and with_.get("repository") == "supervisely-ecosystem/workflows":
             assert with_.get("ref") in ALLOWED_WORKFLOWS_REFS, (path.name, with_.get("ref"))
+
+
+def _workflow(name):
+    return load(ROOT / ".github" / "workflows" / name)
+
+
+def test_update_models_common_uses_its_own_seg_input():
+    """M-12: SEG_MODELS_PATH came from github.event.inputs.models_path, ignoring the input."""
+    steps = list(_steps(_workflow("update_models_common.yml")))
+    env = next(s["env"] for s in steps if s.get("name") == "Sync models")
+    assert env["SEG_MODELS_PATH"] == "${{ inputs.SEG_MODELS_PATH }}"
+    assert env["DET_MODELS_PATH"] == "${{ inputs.DET_MODELS_PATH }}"
+
+
+@pytest.mark.parametrize(
+    "name,key,dispatch_input",
+    [
+        ("update_models_manual.yml", "SEG_MODELS_PATH", "seg_models_path"),
+        ("sync_models_manual.yml", "DET_MODELS_PATH", "det_models_path"),
+    ],
+)
+def test_manual_templates_pass_legacy_paths_from_their_own_inputs(name, key, dispatch_input):
+    data = _workflow(name)
+    job = next(iter(data["jobs"].values()))
+    assert job["with"][key] == "${{ github.event.inputs.%s }}" % dispatch_input
+    assert job["with"]["MODELS_PATH"] == "${{ github.event.inputs.models_path }}"
