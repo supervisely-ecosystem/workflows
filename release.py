@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Literal
 
 import git
+import requests
 from github import Auth, ContentFile, Github, GithubException, GitRelease
 from supervisely.cli.release.release import (
     cd,
@@ -319,7 +320,22 @@ def do_release(
             "Status code": None,
             "Message": str(e),
             "Success": False,
+            "Retryable": is_network_error(e),
         }
+
+
+def is_network_error(e: BaseException) -> bool:
+    """Transient transport failures worth retrying (not bad configs, missing files, ...)."""
+    return isinstance(
+        e,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            ConnectionError,
+            TimeoutError,
+        ),
+    )
 
 
 def response_body(response):
@@ -337,6 +353,7 @@ def is_successful_response(status_code, body) -> bool:
 
 RELEASE_MAX_RETRIES = 3
 RELEASE_RETRY_DELAY = 5  # seconds
+SKOPEO_TIMEOUT = 300  # seconds; a hung registry call must not hold a shared runner for hours
 
 
 # The SDK CLI treats a release as a duplicate when details.message starts with
@@ -371,11 +388,15 @@ def is_already_released(result: dict) -> bool:
 
 
 def is_retryable_error(result: dict) -> bool:
-    """Check if the error is retryable (server errors, network issues)."""
+    """Retry only transient failures: network errors, HTTP 429 and 5xx.
+
+    Deterministic errors (missing config.json, invalid modal template, 4xx
+    answers) fail the same way on every attempt, so they are not retried.
+    """
     status_code = result.get("Status code")
     if status_code is None:
-        return True
-    if isinstance(status_code, int) and status_code >= 500:
+        return bool(result.get("Retryable"))
+    if isinstance(status_code, int) and (status_code == 429 or status_code >= 500):
         return True
     return False
 
@@ -425,8 +446,10 @@ def check_app_is_published(
     except PermissionError:
         err_msg = f'Could not access "{prod_server_address}". Permission denied.'
         return None, err_msg
-    except ConnectionError:
-        err_msg = f'Could not access "{prod_server_address}". Connection Error.'
+    except (requests.exceptions.RequestException, OSError) as e:
+        # requests.exceptions.ConnectionError (DNS, refused, TLS, timeout) is not a
+        # subclass of the built-in ConnectionError the SDK raises for non-200 answers
+        err_msg = f'Could not access "{prod_server_address}". Connection Error. {e}'.rstrip()
         return None, err_msg
     return prod_app is not None, None
 
@@ -995,6 +1018,7 @@ def validate_instance_version(
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    timeout=SKOPEO_TIMEOUT,
                 )
                 if skopeo_result.returncode != 0:
                     raise RuntimeError(
@@ -1113,6 +1137,7 @@ def validate_docker_image(subapp_paths):
             ["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=SKOPEO_TIMEOUT,
         )
         if skopeo_result.returncode != 0:
             print(f"ERROR: skopeo stderr: {skopeo_result.stderr.decode('utf-8')}")
