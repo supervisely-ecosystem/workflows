@@ -164,15 +164,34 @@ jobs:
           echo "TAG_REF_NAME=$TAG_REF_NAME" >> "$GITHUB_ENV"
 
       - name: Validate tag in Docker Hub
+        env:
+          SKIP_TAG_CHECK: ${{ inputs.skip_tag_check }}
         run: |
-          if [ "${{ inputs.skip_tag_check }}" = "true" ]; then
+          if [ "$SKIP_TAG_CHECK" = "true" ]; then
             echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
             echo "Docker Hub tag check skipped by input"
             exit 0
           fi
 
           TAG_URL="https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${TAG_VERSION}"
-          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$TAG_URL")
+          # Docker Hub rate-limits (429) and has transient 5xx/network errors:
+          # retry those with a linear backoff (15+30+45+60 s) before giving up.
+          MAX_ATTEMPTS=5
+          for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
+            HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 "$TAG_URL" || true)
+            HTTP_CODE=${HTTP_CODE:-000}  # 000 = no HTTP answer (DNS, timeout, reset)
+            case "$HTTP_CODE" in
+              429|5[0-9][0-9]|000)
+                if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+                  DELAY=$((ATTEMPT * 15))
+                  echo "Docker Hub answered HTTP ${HTTP_CODE} (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); retrying in ${DELAY}s" >&2
+                  sleep "$DELAY"
+                  continue
+                fi
+                ;;
+            esac
+            break
+          done
 
           if [ "$HTTP_CODE" = "200" ]; then
             echo "TAG_EXISTS=true" >> "$GITHUB_ENV"
