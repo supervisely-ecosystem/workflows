@@ -66,6 +66,9 @@ on:
       GH_ACCESS_TOKEN:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   Supervisely-Release:
     runs-on: gha-runner-supervisely-ecosystem
@@ -76,11 +79,13 @@ jobs:
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          persist-credentials: false
 
       - name: Supervisely Release
         id: release

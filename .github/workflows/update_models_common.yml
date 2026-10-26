@@ -20,18 +20,24 @@ on:
     secrets: # left here for backward compatibility, will be taken from config or env vars in release_models.py
       API_TOKEN:
         required: false
+permissions:
+  contents: read
+
 jobs:
   Update-Models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
       - name: Checkout current repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Checkout workflows repository
         uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          persist-credentials: false
 
       - name: Get Models Path and Framework
         id: get_inputs

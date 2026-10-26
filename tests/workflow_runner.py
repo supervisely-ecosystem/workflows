@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPR = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
 
 
-def load_workflow(name):
-    return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text())
+def load_workflow(name, root=ROOT):
+    return yaml.safe_load((Path(root) / ".github" / "workflows" / name).read_text())
 
 
 def find_step(workflow, job, step_name):
@@ -57,8 +57,8 @@ def fake_bin(directory, name, script):
 
 
 def run_step(workflow_name, job, step_name, workdir, inputs=None, env=None, secrets=None,
-             github=None, fake_bin_dir=None):
-    workflow = load_workflow(workflow_name)
+             github=None, fake_bin_dir=None, workflow_root=ROOT):
+    workflow = load_workflow(workflow_name, workflow_root)
     step = find_step(workflow, job, step_name)
     workdir = Path(workdir)
     github_env = workdir / "_github_env"

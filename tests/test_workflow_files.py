@@ -63,3 +63,31 @@ def test_manual_templates_pass_legacy_paths_from_their_own_inputs(name, key, dis
     job = next(iter(data["jobs"].values()))
     assert job["with"][key] == "${{ github.event.inputs.%s }}" % dispatch_input
     assert job["with"]["MODELS_PATH"] == "${{ github.event.inputs.models_path }}"
+
+
+REUSABLE = [
+    "common.yml",
+    "build_image.yml",
+    "build_image_from_template.yml",
+    "sync_models_common.yml",
+    "update_models_common.yml",
+]
+
+
+@pytest.mark.parametrize("name", REUSABLE)
+def test_reusable_workflows_use_a_read_only_token(name):
+    """M-10: the release job's GITHUB_TOKEN had write-all and stayed in .git/config."""
+    data = _workflow(name)
+    assert data.get("permissions") == {"contents": "read"}
+    for step in _steps(data):
+        if step.get("uses", "").startswith("actions/checkout"):
+            assert (step.get("with") or {}).get("persist-credentials") is False, step
+
+
+@pytest.mark.parametrize("name", ["build_image.yml", "build_image_from_template.yml"])
+def test_inputs_and_secrets_are_not_interpolated_into_scripts(name):
+    """M-10: ${{ inputs.* }} / ${{ secrets.* }} inside run: is a shell-injection vector."""
+    for step in _steps(_workflow(name)):
+        script = step.get("run", "")
+        assert "${{ inputs." not in script, step.get("name")
+        assert "${{ secrets." not in script, step.get("name")
