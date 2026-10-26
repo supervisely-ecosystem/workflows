@@ -660,14 +660,15 @@ def run_release_branch(
                     )
 
         else:
+            # server_address is not known here (and may be unset on the first
+            # subapp), so report the failure the same way run_release does
             if subapp_path is None:
-                print(f"Releasing root app to {server_address}...".ljust(53), end=" ")
+                print("Releasing root app Failed...".ljust(53), end=" ")
             else:
                 print(
-                    (
-                        f'Releasing subapp at "{subapp_path}" to {server_address}'[:50]
-                        + "..."
-                    ).ljust(53),
+                    (f'Releasing subapp at "{subapp_path}" Failed'[:50] + "...").ljust(
+                        53
+                    ),
                     end=" ",
                 )
             print("[Fail]\n")
