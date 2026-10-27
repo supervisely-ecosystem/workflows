@@ -2,6 +2,11 @@ name: Release Models
 on:
   workflow_call:
     inputs:
+      workflows_ref:
+        description: "Ref of supervisely-ecosystem/workflows to checkout for release.py and the other helper scripts"
+        required: false
+        type: string
+        default: "master"
       MODELS_PATH:
         type: string
         required: false
@@ -48,6 +53,7 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          ref: ${{ inputs.workflows_ref }}
           persist-credentials: false
 
       - name: Get Models Path and Framework

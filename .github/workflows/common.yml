@@ -3,6 +3,11 @@ run-name: Supervisely ${{ github.repository }} App Release
 on:
   workflow_call:
     inputs:
+      workflows_ref:
+        description: "Ref of supervisely-ecosystem/workflows to checkout for release.py and the other helper scripts"
+        required: false
+        type: string
+        default: "master"
       SLUG:
         required: true
         type: string
@@ -97,6 +102,7 @@ jobs:
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          ref: ${{ inputs.workflows_ref }}
           persist-credentials: false
 
       - name: Supervisely Release
