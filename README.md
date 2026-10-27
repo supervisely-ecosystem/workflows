@@ -1,6 +1,10 @@
+Files under `templates/` are copied into app repositories; they are not called from here. The
+reusable workflows that app repositories call live in `.github/workflows/`.
+
 # Main releases
 
-To enable app releases you need to add `.github/workflows/release.yml` file into your app repository.
+To enable app releases you need to add `.github/workflows/release.yml` file into your app repository
+(copy `templates/release.yml`; manual publishing: `templates/publish.yml`).
 
 These env vars must be configured on the GitHub Actions runner:
 
@@ -48,7 +52,8 @@ SUBAPP_PATHS: "__ROOT_APP__"
 
 # Branch releases
 
-To enable branch app releases you need to add `.github/workflows/release_branch.yml` file into your app repository.
+To enable branch app releases you need to add `.github/workflows/release_branch.yml` file into your app repository
+(copy `templates/release_branch.yml`, or `templates/build_release_branch.yml` to build a test image first).
 Each time there is a push to a branch, a new release with release version and release name equal to the branch name will be created.
 Optional behavior: set `BUILD_TEST_IMAGE_ON_RELEASE: "true"` to build a `test` image before branch release, but only when `dev_requirements.txt` differs from `master`.
 
