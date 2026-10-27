@@ -20,19 +20,36 @@ on:
     secrets: # left here for backward compatibility, will be taken from config or env vars in release_models.py
       API_TOKEN:
         required: false
+permissions:
+  contents: read
+
 jobs:
   Update-Models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
+      # The tokens come from the runner host's environment, not from GitHub secrets, so GitHub does
+      # not mask them in logs on its own (PROPOSALS.md, item 1).
+      - name: Mask release credentials
+        run: |
+          for name in SUPERVISELY_PROD_API_TOKEN SUPERVISELY_DEV_API_TOKEN SUPERVISELY_PRIVATE_DEV_API_TOKEN \
+                      SUPERVISELY_GITHUB_ACCESS_TOKEN SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
+
       - name: Checkout current repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Checkout workflows repository
         uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
-          ref: runner-updates
           path: workflow
+          persist-credentials: false
 
       - name: Get Models Path and Framework
         id: get_inputs
@@ -49,4 +66,4 @@ jobs:
           python workflow/update_models.py
         env:
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
-          SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
+          SEG_MODELS_PATH: ${{ inputs.SEG_MODELS_PATH }}

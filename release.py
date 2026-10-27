@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Literal
 
 import git
+import requests
 from github import Auth, ContentFile, Github, GithubException, GitRelease
 from supervisely.cli.release.release import (
     cd,
@@ -119,8 +120,13 @@ def remove_scheme(server_address):
     return server_address
 
 
+def is_success(result: dict) -> bool:
+    """A release result counts as successful only if do_release_with_retry/do_release said so."""
+    return bool(result.get("Success"))
+
+
 def print_results(results):
-    success_count = sum(1 for res in results if res["Status code"] == 200)
+    success_count = sum(1 for res in results if is_success(res))
     print(f"Total: {len(results)} releases. Success: {success_count}/{len(results)}")
     if success_count != len(results):
         print("Results:")
@@ -128,7 +134,7 @@ def print_results(results):
             f'{"Result".ljust(10)}{"Release".ljust(30)}{"App name".ljust(20)}{"App path".ljust(20)}{"Status code".ljust(15)}Message'
         )
         for result in results:
-            success = "[OK]" if result["Status code"] == 200 else "[FAIL]"
+            success = "[OK]" if is_success(result) else "[FAIL]"
             app_path = result["App path"]
             if app_path is None:
                 app_path = "__ROOT_APP__"
@@ -296,12 +302,14 @@ def do_release(
             files=files,
         )
 
+        body = response_body(response)
         return {
             "App name": app_name,
             "App path": subapp_path,
             "Release": f"{release_version} ({release_name})",
             "Status code": response.status_code,
-            "Message": response.json(),
+            "Message": body,
+            "Success": is_successful_response(response.status_code, body),
         }
 
     except Exception as e:
@@ -311,31 +319,84 @@ def do_release(
             "Release": f"{release_version} ({release_name})",
             "Status code": None,
             "Message": str(e),
+            "Success": False,
+            "Retryable": is_network_error(e),
         }
+
+
+def is_network_error(e: BaseException) -> bool:
+    """Transient transport failures worth retrying (not bad configs, missing files, ...)."""
+    return isinstance(
+        e,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            ConnectionError,
+            TimeoutError,
+        ),
+    )
+
+
+def response_body(response):
+    """JSON body of the release response, or (part of) its text if it is not JSON."""
+    try:
+        return response.json()
+    except ValueError:
+        return str(getattr(response, "text", ""))[:1000]
+
+
+def is_successful_response(status_code, body) -> bool:
+    """Same rule as the SDK CLI (supervisely/cli/release/run.py): HTTP 200 *and* "success": true."""
+    return status_code == 200 and isinstance(body, dict) and body.get("success") is True
 
 
 RELEASE_MAX_RETRIES = 3
 RELEASE_RETRY_DELAY = 5  # seconds
+SKOPEO_TIMEOUT = 300  # seconds; a hung registry call must not hold a shared runner for hours
+
+
+# The SDK CLI treats a release as a duplicate when details.message starts with
+# "version" and ends with "already exists". Accept the same shape (plus
+# "release ... already released"), but only about a version/release: other
+# conflicts such as "module with this slug already exists" are real errors.
+_ALREADY_RELEASED_RE = re.compile(
+    r"^\s*(app\s+)?(version|release)\b.*\balready\s+(exists|released)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _server_error_message(body):
+    if not isinstance(body, dict):
+        return None
+    details = body.get("details")
+    if isinstance(details, dict) and isinstance(details.get("message"), str):
+        return details["message"]
+    for key in ("message", "error"):
+        if isinstance(body.get(key), str):
+            return body[key]
+    return None
 
 
 def is_already_released(result: dict) -> bool:
-    """Check if the release result indicates the version is already released."""
-    message = str(result.get("Message", "")).lower()
-    already_released_keywords = [
-        "already exists",
-        "already released",
-        "version already",
-        "release already",
-    ]
-    return any(kw in message for kw in already_released_keywords)
+    """Check if the server answered that this version is already released."""
+    if result.get("Status code") is None:
+        # exception text, not a server answer
+        return False
+    message = _server_error_message(result.get("Message"))
+    return message is not None and _ALREADY_RELEASED_RE.search(message) is not None
 
 
 def is_retryable_error(result: dict) -> bool:
-    """Check if the error is retryable (server errors, network issues)."""
+    """Retry only transient failures: network errors, HTTP 429 and 5xx.
+
+    Deterministic errors (missing config.json, invalid modal template, 4xx
+    answers) fail the same way on every attempt, so they are not retried.
+    """
     status_code = result.get("Status code")
     if status_code is None:
-        return True
-    if isinstance(status_code, int) and status_code >= 500:
+        return bool(result.get("Retryable"))
+    if isinstance(status_code, int) and (status_code == 429 or status_code >= 500):
         return True
     return False
 
@@ -350,11 +411,11 @@ def do_release_with_retry(
     delay = retry_delay
     for attempt in range(1, max_retries + 1):
         result = do_release(**kwargs)
-        if result["Status code"] == 200:
+        if is_success(result):
             return result
         if is_already_released(result):
             print("[Skipped: already released]\n")
-            result["Status code"] = 200
+            result["Success"] = True
             result["Skipped"] = True
             return result
         if is_retryable_error(result) and attempt < max_retries:
@@ -385,8 +446,10 @@ def check_app_is_published(
     except PermissionError:
         err_msg = f'Could not access "{prod_server_address}". Permission denied.'
         return None, err_msg
-    except ConnectionError:
-        err_msg = f'Could not access "{prod_server_address}". Connection Error.'
+    except (requests.exceptions.RequestException, OSError) as e:
+        # requests.exceptions.ConnectionError (DNS, refused, TLS, timeout) is not a
+        # subclass of the built-in ConnectionError the SDK raises for non-200 answers
+        err_msg = f'Could not access "{prod_server_address}". Connection Error. {e}'.rstrip()
         return None, err_msg
     return prod_app is not None, None
 
@@ -442,7 +505,10 @@ def run_release(
         print("Release version is not valid. Should be in semver format (v1.2.3).")
         return 1
 
-    results = []
+    # Pre-flight: decide where every subapp goes before uploading anything, so
+    # that a failed production check on subapp N does not leave subapps
+    # 1..N-1 released to production while the rest stay on the old version.
+    routing = []
     for subapp_path in subapp_paths:
         app_key = get_appKey(repo, subapp_path, repo_url)
         is_published, err_msg = check_app_is_published(
@@ -450,64 +516,13 @@ def run_release(
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is None:
-            if is_published:
-                server_address = prod_server_address
-                api_token = prod_api_token
-                share = False
-            else:
-                server_address = dev_server_address
-                api_token = private_dev_api_token
-                share = True
+        routing.append((subapp_path, is_published, err_msg))
+
+    if any(err_msg is not None for _, _, err_msg in routing):
+        results = []
+        for subapp_path, _, err_msg in routing:
             if subapp_path is None:
-                print(
-                    f"Releasing root app to {remove_scheme(server_address)}...".ljust(
-                        53
-                    ),
-                    end=" ",
-                )
-            else:
-                print(
-                    (
-                        f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
-                            :50
-                        ]
-                        + "..."
-                    ).ljust(53),
-                    end=" ",
-                )
-            results.append(
-                do_release_with_retry(
-                    repo=repo,
-                    server_address=server_address,
-                    api_token=api_token,
-                    slug=slug,
-                    subapp_path=subapp_path,
-                    release_version=release_version,
-                    release_name=release_description,
-                    add_slug=True,
-                    repo_url=repo_url,
-                    created_at=None,
-                    share=share,
-                    archive_only_config=archive_only_config,
-                )
-            )
-            if results[-1]["Status code"] == 200:
-                if not results[-1].get("Skipped"):
-                    print("  [OK]\n")
-            else:
-                print("[Fail]\n")
-                if len(subapp_paths) > 1:
-                    print(
-                        f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
-                        "Continuing with remaining subapps...\n"
-                    )
-        else:
-            if subapp_path is None:
-                print(
-                    "Releasing root app Failed...".ljust(53),
-                    end=" ",
-                )
+                print("Releasing root app Failed...".ljust(53), end=" ")
             else:
                 print(
                     (f'Releasing subapp at "{subapp_path}" Failed'[:50] + "...").ljust(
@@ -527,9 +542,74 @@ def run_release(
                     "App path": subapp_path,
                     "Release": f"{release_version} ({release_description})",
                     "Status code": None,
-                    "Message": err_msg,
+                    "Message": err_msg
+                    or "Not released: the production check failed for another subapp.",
+                    "Success": False,
                 }
             )
+        print(
+            "ERROR: Could not determine the target instance for every subapp. "
+            "Nothing was released; re-run the release when production is reachable.\n"
+        )
+        print_results(results)
+        return 1
+
+    results = []
+    for subapp_path, is_published, _ in routing:
+        if is_published:
+            server_address = prod_server_address
+            api_token = prod_api_token
+            share = False
+        else:
+            server_address = dev_server_address
+            api_token = private_dev_api_token
+            share = True
+            print(
+                f'INFO: Subapp "{subapp_path or "__ROOT_APP__"}" is not published on '
+                f"{remove_scheme(prod_server_address)} (not found); releasing to "
+                f"{remove_scheme(server_address or '')} and sharing it."
+            )
+        if subapp_path is None:
+            print(
+                f"Releasing root app to {remove_scheme(server_address)}...".ljust(53),
+                end=" ",
+            )
+        else:
+            print(
+                (
+                    f'Releasing subapp at "{subapp_path}" to {remove_scheme(server_address)}'[
+                        :50
+                    ]
+                    + "..."
+                ).ljust(53),
+                end=" ",
+            )
+        results.append(
+            do_release_with_retry(
+                repo=repo,
+                server_address=server_address,
+                api_token=api_token,
+                slug=slug,
+                subapp_path=subapp_path,
+                release_version=release_version,
+                release_name=release_description,
+                add_slug=True,
+                repo_url=repo_url,
+                created_at=None,
+                share=share,
+                archive_only_config=archive_only_config,
+            )
+        )
+        if is_success(results[-1]):
+            if not results[-1].get("Skipped"):
+                print("  [OK]\n")
+        else:
+            print("[Fail]\n")
+            if len(subapp_paths) > 1:
+                print(
+                    f"  WARNING: Subapp \"{subapp_path}\" failed after retries. "
+                    "Continuing with remaining subapps...\n"
+                )
     all_success = print_results(results)
     if all_success:
         return 0
@@ -608,7 +688,7 @@ def run_release_branch(
                     archive_only_config=archive_only_config,
                 )
             )
-            if results[-1]["Status code"] == 200:
+            if is_success(results[-1]):
                 if not results[-1].get("Skipped"):
                     print("  [OK]\n")
             else:
@@ -620,14 +700,15 @@ def run_release_branch(
                     )
 
         else:
+            # server_address is not known here (and may be unset on the first
+            # subapp), so report the failure the same way run_release does
             if subapp_path is None:
-                print(f"Releasing root app to {server_address}...".ljust(53), end=" ")
+                print("Releasing root app Failed...".ljust(53), end=" ")
             else:
                 print(
-                    (
-                        f'Releasing subapp at "{subapp_path}" to {server_address}'[:50]
-                        + "..."
-                    ).ljust(53),
+                    (f'Releasing subapp at "{subapp_path}" Failed'[:50] + "...").ljust(
+                        53
+                    ),
                     end=" ",
                 )
             print("[Fail]\n")
@@ -663,8 +744,14 @@ def publish(
 ):
     """
     Creates a release for every release in the repository.
+
+    Exit code 0 only if every subapp that is not yet on production had *all* of
+    its GitHub releases uploaded (duplicates count as done) and at least one
+    subapp was actually published. A failed production check is a failure; a
+    subapp that is already on production is skipped.
     """
     all_success = True
+    published_any = False
     for subapp_path in subapp_paths:
         app_key = get_appKey(repo, subapp_path, repo_url)
 
@@ -681,14 +768,14 @@ def publish(
             prod_api_token=prod_api_token,
             app_key=app_key,
         )
-        if err_msg is not None or is_published:
+        if err_msg is not None:
             print("[Fail]\n")
+            all_success = False
             try:
                 config = get_config(subapp_path)
                 app_name = get_app_name(config)
             except:
                 app_name = "Unknown"
-            message = "App is already published to production. This action only works for apps that are not published to production."
             print_results(
                 [
                     {
@@ -696,21 +783,32 @@ def publish(
                         "App path": subapp_path,
                         "Release": "All",
                         "Status code": None,
-                        "Message": message if err_msg is None else err_msg,
+                        "Message": err_msg,
+                        "Success": False,
                     }
                 ]
             )
             continue
+        if is_published:
+            print("[Skipped]\n")
+            print(
+                "  App is already published to production. This action only works for apps that are not published to production.\n"
+            )
+            continue
+        if not gh_releases:
+            print("[Fail]\n")
+            print("  No published GitHub releases with a vX.Y.Z tag found: nothing to publish.\n")
+            all_success = False
+            continue
 
         results = []
-        success = False
         for gh_release in gh_releases:
             repo.git.checkout(gh_release.tag_name)
             release_version = gh_release.tag_name
             if release_version.startswith("sly-release-"):
                 release_version = release_version[len("sly-release-") :]
             results.append(
-                do_release(
+                do_release_with_retry(
                     repo=repo,
                     server_address=prod_server_address,
                     api_token=prod_api_token,
@@ -725,16 +823,20 @@ def publish(
                     archive_only_config=archive_only_config,
                 )
             )
-            # if any of the releases is successful, consider the whole app release successful
-            success = success or results[-1]["Status code"] == 200
+        # every historical release must reach production, otherwise users get a
+        # partial version list
+        success = all(is_success(r) for r in results)
         if success:
             print("  [OK]\n")
+            published_any = True
         else:
             print("[Fail]\n")
 
-        # if all of the apps released successfully, consider the whole release successful
         all_success = all_success and success
         print_results(results)
+    if all_success and not published_any:
+        print("ERROR: Nothing was published: every subapp is already on production.")
+        return 1
     return 0 if all_success else 1
 
 
@@ -778,7 +880,8 @@ def fetch_release_description(github_access_token, slug, release_version):
     GH = Github(auth=gh_auth)
     gh_repo = GH.get_repo(slug)
     gh_release = gh_repo.get_release(release_version)
-    return gh_release.body
+    # releases created via the API/CLI without notes have "body": null
+    return gh_release.body or ""
 
 
 def parse_release_subapp_filter(release_description: str):
@@ -794,6 +897,14 @@ def parse_release_subapp_filter(release_description: str):
     if match is None:
         return None
     return normalize_subapp_path(match.group(1))
+
+
+def parse_sdk_version_from_description(release_description: str):
+    """Find `python_sdk_version: X.Y.Z` (or `= X.Y.Z`) on any line of the release body."""
+    match = re.search(
+        r"python_sdk_version\s*[:=]\s*v?(\d+(?:\.\d+){1,2})\b", release_description or ""
+    )
+    return match.group(1) if match else None
 
 
 def get_sdk_versions_range(instance_version: str, versions_json: Dict):
@@ -835,8 +946,8 @@ def validate_instance_version(
             f"ERROR: versions.json not found in root and supervisely/ subdirectory. Exception: {e}"
         )
         raise
-    release_description = fetch_release_description(
-        github_access_token, slug, release_version
+    release_description = (
+        fetch_release_description(github_access_token, slug, release_version) or ""
     )
     # fetch docker_images
     try:
@@ -932,6 +1043,7 @@ def validate_instance_version(
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    timeout=SKOPEO_TIMEOUT,
                 )
                 if skopeo_result.returncode != 0:
                     raise RuntimeError(
@@ -950,8 +1062,9 @@ def validate_instance_version(
                         sdk_version = labels[key]
                         break
                 if sdk_version is None:
+                    label_names = " ".join(labels.keys()) if labels else "not found"
                     raise RuntimeError(
-                        f"python_sdk_version not found in the docker image labels. Labels: {" ".join(labels.keys()) if labels else "not found"}"
+                        f"python_sdk_version not found in the docker image labels. Labels: {label_names}"
                     )
                 sdk_version = sdk_version.split("+")[0].split("-")[
                     0
@@ -967,7 +1080,8 @@ def validate_instance_version(
                     "INFO: Will read release description to find the appropriate SDK version."
                 )
                 print("INFO: Release description:", release_description)
-                if release_description.find("python_sdk_version") == -1:
+                sdk_version = parse_sdk_version_from_description(release_description)
+                if sdk_version is None:
                     print(
                         "ERROR: python_sdk_version not found in the release description."
                     )
@@ -977,10 +1091,13 @@ def validate_instance_version(
                     raise RuntimeError(
                         "python_sdk_version not found in the release description."
                     )
-                sdk_version = release_description.split("python_sdk_version:")[1].strip(
-                    " \n"
-                )
         print(f"INFO: SDK version to check: {sdk_version}")
+        if not re.fullmatch(r"v?\d+(\.\d+)*", str(sdk_version)):
+            raise ValueError(
+                f"Cannot use '{sdk_version}' (from docker image {config['docker_image']}) "
+                "as a Supervisely SDK version. Use a numeric SDK version tag "
+                "(e.g. 6.73.10), or set the python_sdk_version label on the image."
+            )
         # validate version
         if not is_valid_versions(instance_version, sdk_version, versions_json):
             min_sdk_ver, max_sdk_ver = get_sdk_versions_range(
@@ -1013,8 +1130,8 @@ def need_validate_instance_version(
         True,
     ]:
         return False
-    release_description = fetch_release_description(
-        github_access_token, slug, release_version
+    release_description = (
+        fetch_release_description(github_access_token, slug, release_version) or ""
     )
     if release_description.find("skip_sdk_version_validation") != -1:
         return False
@@ -1034,14 +1151,22 @@ def validate_docker_image(subapp_paths):
         except Exception:
             print(f"ERROR: Config file not found in subapp {subapp_name}")
             raise
-        if config.get("type", None) in ["project", "collection", "client_side_app"]:
-            return
+        app_type = config.get("type", None)
+        if app_type in ["project", "collection", "client_side_app"]:
+            # these types have no docker image; keep checking the remaining subapps
+            print(f"INFO: App {subapp_name} is a {app_type}. Skipping docker image validation.")
+            continue
+        if "docker_image" not in config:
+            raise RuntimeError(
+                f"docker_image key not found in config.json of subapp {subapp_name}"
+            )
         docker_image = config["docker_image"].replace("supervisely/", "")
         print(f"INFO: Docker image to validate: {docker_image}")
         skopeo_result = subprocess.run(
             ["skopeo", "inspect", f"docker://docker.io/supervisely/{docker_image}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=SKOPEO_TIMEOUT,
         )
         if skopeo_result.returncode != 0:
             print(f"ERROR: skopeo stderr: {skopeo_result.stderr.decode('utf-8')}")
@@ -1160,6 +1285,7 @@ def run(
             )
         except Exception as e:
             print("Error validating instance version")
+            print(f"ERROR: {e}")
             return 1
 
     if release_type == ReleaseType.RELEASE:
@@ -1255,39 +1381,6 @@ def main():
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
     archive_only_config = archive_only_config in [1, "1", "true", "True", True]
 
-    def _token_info(token):
-        # Provide a safe preview and a short hash for debugging without exposing full secret
-        if token is None or token == "":
-            return "None"
-        try:
-            import hashlib
-
-            preview = token if len(token) <= 12 else f"{token[:6]}...{token[-4:]}"
-            sha = hashlib.sha256(token.encode()).hexdigest()[:10]
-            return f"{preview} (sha256:{sha})"
-        except Exception:
-            return "<error>"
-
-    # print(
-    #     f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
     # print(
     #     f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
     #     file=sys.stderr,

@@ -20,5 +20,5 @@ jobs:
     uses: supervisely-ecosystem/workflows/.github/workflows/update_models_common.yml@master
     with:
       MODELS_PATH: ${{ github.event.inputs.models_path }}
-      SEG_MODELS_PATH: ${{ github.event.inputs.models_path }}
+      SEG_MODELS_PATH: ${{ github.event.inputs.seg_models_path }}
       FRAMEWORK: ${{ github.event.inputs.framework }}

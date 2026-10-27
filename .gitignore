@@ -3,3 +3,4 @@
 .venv-wsl
 .env
 *.log
+.pytest_cache/

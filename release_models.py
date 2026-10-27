@@ -97,8 +97,10 @@ def get_list_all_pages(method, data):
         pass
     else:
         for page_idx in range(2, pages_count + 1):
-            temp_resp = get(method, {**data, "page": page_idx, "per_page": per_page})
-            temp_items = temp_resp.json()["entities"]
+            # get() already returns the decoded JSON; send the page in the body
+            # like the first request (SDK EcosystemModelsApi does the same)
+            temp_resp = get(method, data={**data, "page": page_idx, "per_page": per_page})
+            temp_items = temp_resp["entities"]
             results.extend(temp_items)
 
         if len(results) != total:
@@ -164,12 +166,35 @@ def find_serve_and_train_modules():
     return serve_module, train_module
 
 
+def is_same_file(path_a: str, path_b: str) -> bool:
+    return (
+        path_a != ""
+        and path_b != ""
+        and os.path.realpath(path_a) == os.path.realpath(path_b)
+    )
+
+
+def own_task_type(model: dict):
+    task_type = model.get("task_type", None)
+    if task_type is None:
+        task_type = model.get("meta", {}).get("task_type", None)
+    return task_type
+
+
 def read_models():
     serve, train = find_serve_and_train_modules()
     models = []
     if models_path != "":
         models.extend(json.load(open(models_path, "r")))
-    if det_models_path != "":
+    # The manual-workflow template passed models_path again as DET_MODELS_PATH,
+    # so every model was read twice and added twice. Read it once; a model
+    # without its own task_type keeps the legacy "object detection" default.
+    if is_same_file(det_models_path, models_path):
+        print("INFO: DET_MODELS_PATH is the same file as MODELS_PATH; reading it once.")
+        for model in models:
+            if "task" not in model:
+                model["task"] = own_task_type(model) or "object detection"
+    elif det_models_path != "":
         det_models = json.load(open(det_models_path, "r"))
         for model in det_models:
             model["task"] = "object detection"

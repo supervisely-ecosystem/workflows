@@ -35,13 +35,15 @@ ARG REQUIREMENTS_FILE
 
 COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 
+# The hardened base ships without pip. Bootstrap it only when there are wheels to
+# install (a comment-only requirements file produces none) and remove it again.
 RUN --mount=from=requirements-builder,source=/tmp/wheels,target=/tmp/wheels,ro \
   set -eux; \
   export PYTHONDONTWRITEBYTECODE=1; \
   if [ -s /tmp/requirements.txt ]; then \
-    /opt/venv/bin/python -m ensurepip --upgrade; \
     set -- /tmp/wheels/*.whl; \
     if [ -e "$1" ]; then \
+      /opt/venv/bin/python -m ensurepip --upgrade; \
       /opt/venv/bin/python -m pip install --no-cache-dir --no-compile --no-index /tmp/wheels/*.whl; \
       rm -rf \
         /opt/venv/lib/python*/site-packages/pip* \

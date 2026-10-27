@@ -98,8 +98,10 @@ def get_list_all_pages(method, data):
         pass
     else:
         for page_idx in range(2, pages_count + 1):
-            temp_resp = get(method, {**data, "page": page_idx, "per_page": per_page})
-            temp_items = temp_resp.json()["entities"]
+            # get() already returns the decoded JSON; send the page in the body
+            # like the first request (SDK EcosystemModelsApi does the same)
+            temp_resp = get(method, data={**data, "page": page_idx, "per_page": per_page})
+            temp_items = temp_resp["entities"]
             results.extend(temp_items)
 
         if len(results) != total:
@@ -170,11 +172,46 @@ def find_serve_and_train_modules():
     return serve_module, train_module
 
 
+def is_same_file(path_a: str, path_b: str) -> bool:
+    return (
+        path_a != ""
+        and path_b != ""
+        and os.path.realpath(path_a) == os.path.realpath(path_b)
+    )
+
+
+def own_task_type(model: dict):
+    task_type = model.get("task_type", None)
+    if task_type is None:
+        task_type = model.get("meta", {}).get("task_type", None)
+    return task_type
+
+
 def read_models():
     models = []
     if models_path != "":
         models.extend(json.load(open(models_path, "r")))
-    if det_models_path != "":
+    # The manual-workflow template passed models_path again as SEG_MODELS_PATH,
+    # so the same file was read twice: every model was updated twice and the
+    # second pass forced "instance segmentation" on entries without task_type.
+    # Read it once and take each model's task from its own task_type.
+    same_as_models = [
+        name
+        for name, path in (
+            ("DET_MODELS_PATH", det_models_path),
+            ("SEG_MODELS_PATH", seg_models_path),
+        )
+        if is_same_file(path, models_path)
+    ]
+    if same_as_models:
+        print(
+            f"INFO: {', '.join(same_as_models)} is the same file as MODELS_PATH; reading it once."
+        )
+        for model in models:
+            task_type = own_task_type(model)
+            if task_type is not None and "task" not in model:
+                model["task"] = task_type
+    if det_models_path != "" and not is_same_file(det_models_path, models_path):
         det_models = json.load(open(det_models_path, "r"))
         for model in det_models:
             task_type = model.get("task_type", None)
@@ -184,7 +221,7 @@ def read_models():
                 task_type = "object detection"
             model["task"] = task_type
             models.append(model)
-    if seg_models_path != "":
+    if seg_models_path != "" and not is_same_file(seg_models_path, models_path):
         seg_models = json.load(open(seg_models_path, "r"))
         for model in seg_models:
             task_type = model.get("task_type", None)

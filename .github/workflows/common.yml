@@ -66,21 +66,38 @@ on:
       GH_ACCESS_TOKEN:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   Supervisely-Release:
     runs-on: gha-runner-supervisely-ecosystem
     outputs:
       release_models: ${{ steps.release.outputs.release_models }}
     steps:
+      # The tokens come from the runner host's environment, not from GitHub secrets, so GitHub does
+      # not mask them in logs on its own (PROPOSALS.md, item 1).
+      - name: Mask release credentials
+        run: |
+          for name in SUPERVISELY_PROD_API_TOKEN SUPERVISELY_DEV_API_TOKEN SUPERVISELY_PRIVATE_DEV_API_TOKEN \
+                      SUPERVISELY_GITHUB_ACCESS_TOKEN SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
+
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.COMMIT_SHA }}
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/checkout@v6
         with:
           repository: supervisely-ecosystem/workflows
           path: workflow
+          persist-credentials: false
 
       - name: Supervisely Release
         id: release
