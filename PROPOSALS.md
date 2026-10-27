@@ -158,6 +158,22 @@ suffix.
    otherwise (M-8, QUESTIONS 3.7). Apply this to release-triggered builds only, because the manual
    "build app image" flow runs before config.json is switched.
 
+## 6. Branch test images use one mutable tag, `:test` (seen on dev 2026-10-27)
+
+**Problem.** The test-image template (`build_release_branch.yml`, copied into app repos) builds
+`supervisely/<repo>:test` whenever `dev_requirements.txt` changes, and the app's config.json names
+`:test`. Agents start images with pull policy `ifnotpresent`, so an agent that already has `:test`
+never pulls the rebuilt one: import-coco task 62878 ran the previous SDK after a successful rebuild.
+Two branches of the same app also overwrite each other's `:test`.
+
+**Options.**
+- **A.** Tag per content: `test-<sha7(dev_requirements.txt)>` (or of the pinned SDK commit), with a
+  check that fails the branch release when config.json names a different tag (as item 5 A).
+- **B.** Agent side: always pull tags that start with `test` (agent repo, not this one).
+
+**Recommendation.** A in the template now (it is how main-import and import-coco test branches work
+since 2026-10-27, by hand); B as well if the agent owners agree.
+
 ---
 
 ## Also left out of the branch on purpose
@@ -166,7 +182,8 @@ suffix.
   `release_branch.yml` are caller *templates*, but they live in `.github/workflows` and trigger on
   every branch push in *this* repo (audit L-8). Fixing the ref would let more of their jobs start
   here (including an image build and a branch release when `docker/hardened/` changes, as on this
-  branch). Move the templates to `templates/` first, then fix the ref. **Pushing this branch
+  branch). Move the templates to `templates/` first, then fix the ref. No app repo calls either file by path
+  (checked in all org mirrors on 2026-10-27), so moving them breaks no caller. **Pushing this branch
   triggers both templates in this repo**; they currently fail at startup or on the checkout
   policy.
 - Job-level `timeout-minutes` and timeouts on the SDK's own `requests.post` calls (M-3). Choose
