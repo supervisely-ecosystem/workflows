@@ -1381,39 +1381,6 @@ def main():
     archive_only_config = os.getenv("ARCHIVE_ONLY_CONFIG", False)
     archive_only_config = archive_only_config in [1, "1", "true", "True", True]
 
-    def _token_info(token):
-        # Provide a safe preview and a short hash for debugging without exposing full secret
-        if token is None or token == "":
-            return "None"
-        try:
-            import hashlib
-
-            preview = token if len(token) <= 12 else f"{token[:6]}...{token[-4:]}"
-            sha = hashlib.sha256(token.encode()).hexdigest()[:10]
-            return f"{preview} (sha256:{sha})"
-        except Exception:
-            return "<error>"
-
-    # print(
-    #     f"SUPERVISELY_DEV_API_TOKEN: {_token_info(dev_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_PRIVATE_DEV_API_TOKEN: {_token_info(private_dev_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_PROD_API_TOKEN: {_token_info(prod_api_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
-    # print(
-    #     f"SUPERVISELY_GITHUB_ACCESS_TOKEN: {_token_info(github_access_token)}",
-    #     file=sys.stderr,
-    #     flush=True,
-    # )
     # print(
     #     f"SUPERVISELY_DEV_SERVER_ADDRESS: {os.getenv('SUPERVISELY_DEV_SERVER_ADDRESS', None)}",
     #     file=sys.stderr,

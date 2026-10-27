@@ -27,6 +27,18 @@ jobs:
   Update-Models:
     runs-on: gha-runner-supervisely-ecosystem
     steps:
+      # The tokens come from the runner host's environment, not from GitHub secrets, so GitHub does
+      # not mask them in logs on its own (PROPOSALS.md, item 1).
+      - name: Mask release credentials
+        run: |
+          for name in SUPERVISELY_PROD_API_TOKEN SUPERVISELY_DEV_API_TOKEN SUPERVISELY_PRIVATE_DEV_API_TOKEN \
+                      SUPERVISELY_GITHUB_ACCESS_TOKEN SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
+
       - name: Checkout current repository
         uses: actions/checkout@v6
         with:
