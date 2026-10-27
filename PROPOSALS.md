@@ -2,9 +2,8 @@
 
 Companion to branch `audit-fixes-2026-10`. That branch fixes the findings that are local to this
 repository. The items below change who holds credentials, what blocks a release, or what every
-caller repo has to do, so they are not implemented. IDs refer to the audit
-(`ecosystem-fleet/audits/workflows-audit.md`, origin/HEAD 09ca757) and to
-`ecosystem-fleet/QUESTIONS.md`.
+caller repo has to do, so they are not implemented. IDs refer to the findings
+of an audit of this repository in October 2026 (at master 09ca757).
 
 ---
 
@@ -116,7 +115,7 @@ reproducibility only to callers who set the input.
 lands, make helper checkouts follow the tag, and move templates and new repos to `@v1`. Fix
 MaskDINO and instance-performance-meter to `@master` (or `@v1`) now.
 
-## 5. The per-app image tag does not cover dependency changes (QUESTIONS 3.6; related: H-5, M-8, QUESTIONS 3.7)
+## 5. The per-app image tag does not cover dependency changes (related: H-5, M-8)
 
 **Problem.** `build_image_from_template.yml` tags the per-app image with the SDK version from
 config.json only, and skips the whole build when that tag exists on Docker Hub. A release that
@@ -126,7 +125,7 @@ missing dependencies show up only at runtime. Related problems:
   labels, and `release.py` treats the tag as the SDK version when it `startswith("6.7")`.
 - The builder ignores the image *name* in config.json (M-8). export-to-coco builds
   `supervisely/export-to-coco:*` but runs `supervisely/import-export:*`.
-- Apps on the bare hardened image still build a per-app image (QUESTIONS 3.7).
+- Apps on the bare hardened image still build a per-app image.
 - `release.py` and `resolve_release_tag.py` cannot parse a suffixed tag: `6.74.34-1` becomes
   `6.74.341` in `release.py`, and `int("34-1")` fails in `resolve_release_tag.py` (audit L-4).
 
@@ -155,7 +154,7 @@ suffix.
 3. B as the default behaviour (detect and fail, never overwrite). Move to A if teams prefer an
    automatic tag.
 4. Build only when config.json's `docker_image` is `supervisely/<image_name>`, and print a notice
-   otherwise (M-8, QUESTIONS 3.7). Apply this to release-triggered builds only, because the manual
+   otherwise (M-8). Apply this to release-triggered builds only, because the manual
    "build app image" flow runs before config.json is switched.
 
 ## 6. Branch test images use one mutable tag, `:test` (seen on dev 2026-10-27)
