@@ -1,0 +1,40 @@
+name: Tests
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+# This repository allows only actions owned by supervisely-ecosystem, so there is no
+# actions/checkout or setup-python here: plain git (the repository is public) and the
+# runner's own Python 3.
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        run: |
+          git init -q .  # full history: two test files compare against an older commit
+          git fetch -q "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+      - name: Install test dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r tests/requirements.txt
+      - name: Run tests
+        run: .venv/bin/python -m pytest tests
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        run: |
+          git init -q .  # full history: two test files compare against an older commit
+          git fetch -q "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+      # runner labels are listed in .github/actionlint.yaml
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color

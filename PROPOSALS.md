@@ -111,6 +111,8 @@ MaskDINO and instance-performance-meter still point at `@runner-updates`.
 they do, `@master` keeps the current behaviour, which is not a regression. A alone gives
 reproducibility only to callers who set the input.
 
+**Status.** A is done: `common.yml`, `sync_models_common.yml` and `update_models_common.yml` take `workflows_ref` (default `master`) for the helper checkout. CI (`.github/workflows/ci.yml`: pytest + actionlint) runs on pull requests, so C needs only the branch protection setting.
+
 **Recommendation.** C immediately (the tests now exist). Then A + B: tag `v1.0.0` after this branch
 lands, make helper checkouts follow the tag, and move templates and new repos to `@v1`. Fix
 MaskDINO and instance-performance-meter to `@master` (or `@v1`) now.
@@ -148,7 +150,8 @@ suffix.
 
 **Recommendation.**
 1. *Prerequisite (local, low risk):* accept `X.Y.Z[-suffix]` everywhere and strip the suffix for
-   SDK checks.
+   SDK checks. Done: `release.py` and `scripts/resolve_release_tag.py`; the builder uses the
+   unsuffixed tag for the runtime base image.
 2. Stamp labels at build: `python_sdk_version` read from the installed package (fail if it differs
    from the tag, closing H-5) and `sly.requirements_sha256`.
 3. B as the default behaviour (detect and fail, never overwrite). Move to A if teams prefer an

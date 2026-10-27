@@ -10,6 +10,11 @@ def parse_args():
     parser.add_argument("--config", required=True, help="Path to config.json")
     parser.add_argument("--input-release-tag", default="", help="Explicit release tag input")
     parser.add_argument(
+        "--strip-suffix",
+        action="store_true",
+        help="Print the SDK version without the image suffix (6.74.34-1 -> 6.74.34), e.g. for the base image tag",
+    )
+    parser.add_argument(
         "--requirements",
         default="dev_requirements.txt",
         help="Requirements file path to use as fallback when config.json is missing or does not define docker_image",
@@ -17,7 +22,21 @@ def parse_args():
     return parser.parse_args()
 
 
-def resolve_from_config(config_path: str) -> str:
+VERSION_TAG = re.compile(r"^(\d+(?:\.\d+)*)(-[0-9A-Za-z.\-]+)?$")
+
+
+def normalize_version(version: str, strip_suffix: bool = False) -> str:
+    """`6.74.034` -> `6.74.34`; a rebuild suffix (`6.74.34-1`) is kept unless strip_suffix."""
+    match = VERSION_TAG.match(version)
+    if not match:
+        raise ValueError(f"not a version tag: {version}")
+    version_parts = match.group(1).split(".")
+    version_parts[-1] = str(int(version_parts[-1]))
+    suffix = "" if strip_suffix else (match.group(2) or "")
+    return ".".join(version_parts) + suffix
+
+
+def resolve_from_config(config_path: str, strip_suffix: bool = False) -> str:
     with open(config_path, "r", encoding="utf-8") as file_handle:
         data = json.load(file_handle)
 
@@ -29,9 +48,7 @@ def resolve_from_config(config_path: str) -> str:
     if not version:
         raise ValueError("config.json missing .version")
 
-    version_parts = version.split(".")
-    version_parts[-1] = str(int(version_parts[-1]))
-    return ".".join(version_parts)
+    return normalize_version(version, strip_suffix)
 
 
 def resolve_from_requirements(requirements_path: str) -> str:
@@ -55,10 +72,7 @@ def resolve_from_requirements(requirements_path: str) -> str:
                     continue
                 match = re.match(r"^supervisely(?:\[[^\]]+\])?==([0-9]+(?:\.[0-9]+)*)$", stripped)
                 if match:
-                    version = match.group(1)
-                    version_parts = version.split(".")
-                    version_parts[-1] = str(int(version_parts[-1]))
-                    return ".".join(version_parts)
+                    return normalize_version(match.group(1))
 
     raise FileNotFoundError(
         f"Could not resolve version from requirements files: {requirements_path}, requirements.txt"
@@ -73,7 +87,7 @@ def main() -> int:
         return 0
 
     try:
-        version = resolve_from_config(args.config)
+        version = resolve_from_config(args.config, args.strip_suffix)
     except FileNotFoundError:
         try:
             version = resolve_from_requirements(args.requirements)

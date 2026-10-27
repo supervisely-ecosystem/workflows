@@ -7,12 +7,10 @@ on:
         description: 'Docker Image Tag (without "v")'
         required: true
         type: string
-        default: ""
       dockerfile_path:
         description: "Path to Dockerfile"
         required: true
         type: string
-        default: "docker/Dockerfile"
       image_name:
         description: "Docker Image Name (optional)"
         required: false
@@ -58,7 +56,7 @@ jobs:
           if [[ "$IMAGE_NAME" != supervisely/* ]]; then
             IMAGE_NAME="supervisely/$IMAGE_NAME"
           fi
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
           echo "Image name: $IMAGE_NAME"
           echo "Tag version: $IN_TAG_VERSION"
           echo "Dockerfile path: $IN_DOCKERFILE_PATH"
@@ -85,7 +83,7 @@ jobs:
           if [[ "$IN_LATEST_TAG" == "true" ]]; then
             TAGS="${TAGS},${IMAGE_NAME}:latest"
           fi
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Get SDK version
         run: |

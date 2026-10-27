@@ -131,3 +131,19 @@ def test_runner_jobs_mask_tokens_first(name):
         assert "::add-mask::" in first["run"]
         for token in RUNNER_TOKENS:
             assert token in first["run"], (name, token)
+
+
+@pytest.mark.parametrize(
+    "name", ["common.yml", "sync_models_common.yml", "update_models_common.yml", "build_image_from_template.yml"]
+)
+def test_helper_scripts_follow_the_workflows_ref_input(name):
+    """M-11 / PROPOSALS 4 A: the helper checkout had no ref, so a caller pinned to a SHA ran today's release.py."""
+    data = _workflow(name)
+    call = data[True]["workflow_call"] if True in data else data["on"]["workflow_call"]
+    assert call["inputs"]["workflows_ref"]["default"] == "master"
+    checkouts = [
+        s for s in _steps(data)
+        if s.get("uses", "").startswith("actions/checkout")
+        and (s.get("with") or {}).get("repository") == "supervisely-ecosystem/workflows"
+    ]
+    assert checkouts and all(s["with"]["ref"] == "${{ inputs.workflows_ref }}" for s in checkouts)
