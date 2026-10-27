@@ -8,74 +8,71 @@ on:
 
 env:
   BUILD_TEST_IMAGE_ON_RELEASE: "true"
+  # Files the test image is built from. Their content names the image tag: test-<sha256[:8]>.
+  TEST_IMAGE_FILES: "dev_requirements.txt requirements.txt docker/hardened/Dockerfile.tmpl"
 
 jobs:
-  Check-Dev-Requirements:
+  Test-Image-Tag:
     runs-on: ubuntu-latest
     outputs:
-      enabled: ${{ steps.flag.outputs.enabled }}
-      changed: ${{ steps.diff.outputs.changed }}
+      enabled: ${{ steps.tag.outputs.enabled }}
+      build: ${{ steps.tag.outputs.build }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Check feature flag
-        id: flag
+      # One tag per content: agents start images with pull policy "if not present", so a rebuilt
+      # image under a tag an agent already has (the old ":test") never reaches it.
+      - name: Resolve test image tag
+        id: tag
         run: |
-          if [ "${{ env.BUILD_TEST_IMAGE_ON_RELEASE }}" = "true" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "Test image build before branch release is enabled"
-          else
+          if [ "$BUILD_TEST_IMAGE_ON_RELEASE" != "true" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "Test image build before branch release is disabled"
-          fi
-
-      - name: Fetch master branch
-        if: ${{ steps.flag.outputs.enabled == 'true' }}
-        run: |
-          git fetch origin master:refs/remotes/origin/master
-
-      - name: Check dev_requirements.txt changes
-        id: diff
-        run: |
-          if [ "${{ steps.flag.outputs.enabled }}" != "true" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping dev_requirements.txt diff because test image build is disabled"
             exit 0
           fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
 
-          BEFORE_SHA="${{ github.event.before }}"
-          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
-            DIFF_RANGE="$BEFORE_SHA..HEAD"
-            echo "Checking image-related changes in current push: $DIFF_RANGE"
-          else
-            DIFF_RANGE="origin/master...HEAD"
-            echo "No previous branch SHA available; checking image-related changes against master: $DIFF_RANGE"
-          fi
+          HASH=$(for f in $TEST_IMAGE_FILES; do [ -f "$f" ] && cat "$f"; done | sha256sum | cut -c1-8)
+          TAG="test-$HASH"
+          REPO=$(echo "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')
+          EXPECTED="supervisely/$REPO:$TAG"
+          CONFIGURED=$(python3 -c 'import json; print(json.load(open("config.json")).get("docker_image", ""))')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-          if git diff --quiet "$DIFF_RANGE" -- dev_requirements.txt requirements.txt docker/hardened/Dockerfile.tmpl; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No image-related files changed"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Image-related files changed"
-          fi
+          case "$CONFIGURED" in
+            *:test*)
+              if [ "$CONFIGURED" != "$EXPECTED" ]; then
+                echo "::error file=config.json::config.json has docker_image \"$CONFIGURED\"; for the current $TEST_IMAGE_FILES set it to \"$EXPECTED\""
+                exit 1
+              fi
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              echo "Test image: $EXPECTED (built only if the tag is not on Docker Hub yet)"
+              ;;
+            *)
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              echo "config.json uses $CONFIGURED, not a test image; nothing to build"
+              ;;
+          esac
 
   Build-Test-Image:
-    needs: Check-Dev-Requirements
-    if: ${{ needs.Check-Dev-Requirements.outputs.enabled == 'true' && needs.Check-Dev-Requirements.outputs.changed == 'true' }}
-    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@build-test-image
+    needs: Test-Image-Tag
+    if: ${{ needs.Test-Image-Tag.outputs.enabled == 'true' && needs.Test-Image-Tag.outputs.build == 'true' }}
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image_from_template.yml@master
     with:
-      tag_version: "test"
-      skip_tag_check: true
-      # workflows_ref: build-test-image # for testing
+      tag_version: ${{ needs.Test-Image-Tag.outputs.tag }}
+      # an existing tag already has this content, so the build is skipped
+      skip_tag_check: false
+      # with the SDK pinned to a commit in dev_requirements.txt, name the runtime base tag explicitly:
+      # tag_ref_name: "6.74.46"
 
   Supervisely-Release-Branch:
     needs:
-      - Check-Dev-Requirements
+      - Test-Image-Tag
       - Build-Test-Image
-    if: ${{ always() && (needs.Check-Dev-Requirements.outputs.enabled != 'true' || needs.Check-Dev-Requirements.outputs.changed == 'false' || needs.Build-Test-Image.result == 'success') }}
+    if: ${{ always() && needs.Test-Image-Tag.result == 'success' && (needs.Test-Image-Tag.outputs.build != 'true' || needs.Build-Test-Image.result == 'success') }}
     uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     with:
       SLUG: "${{ github.repository }}"

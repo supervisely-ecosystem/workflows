@@ -34,7 +34,7 @@ different user or team, or may lack permissions, and a fallback only helps when 
 repo's own releases (enough for `release.py`) but not other private repos. C needs an org admin
 and runner changes.
 
-**Recommendation.** Do A now. Before B, add a one-off check job (in one test repo) that prints
+**Recommendation.** Do A now (done on this branch: every runner job masks the tokens first). Before B, add a one-off check job (in one test repo) that prints
 only whether `sha256(secret) == sha256(env)` for each token. Switch to B per token once the hashes
 match. Then plan C.
 
@@ -171,21 +171,15 @@ Two branches of the same app also overwrite each other's `:test`.
   check that fails the branch release when config.json names a different tag (as item 5 A).
 - **B.** Agent side: always pull tags that start with `test` (agent repo, not this one).
 
-**Recommendation.** A in the template now (it is how main-import and import-coco test branches work
-since 2026-10-27, by hand); B as well if the agent owners agree.
+**Recommendation.** A in the template now (done on this branch in `templates/build_release_branch.yml`,
+with the hash of `TEST_IMAGE_FILES`); B as well if the agent owners agree.
 
 ---
 
 ## Also left out of the branch on purpose
 
-- `build_release_branch.yml:68` still uses `@build-test-image`, a deleted branch. This file and
-  `release_branch.yml` are caller *templates*, but they live in `.github/workflows` and trigger on
-  every branch push in *this* repo (audit L-8). Fixing the ref would let more of their jobs start
-  here (including an image build and a branch release when `docker/hardened/` changes, as on this
-  branch). Move the templates to `templates/` first, then fix the ref. No app repo calls either file by path
-  (checked in all org mirrors on 2026-10-27), so moving them breaks no caller. **Pushing this branch
-  triggers both templates in this repo**; they currently fail at startup or on the checkout
-  policy.
+- Done on this branch: the caller templates moved from `.github/workflows` to `templates/` (audit L-8),
+  so they no longer run in this repository; `build_release_branch.yml` calls the builder `@master`.
 - Job-level `timeout-minutes` and timeouts on the SDK's own `requests.post` calls (M-3). Choose
   values per job (CUDA builds are long). `skopeo` now has a 300 s timeout.
 - M-4 remainder: prove the prod address and token with `instance.version` before treating a 404
