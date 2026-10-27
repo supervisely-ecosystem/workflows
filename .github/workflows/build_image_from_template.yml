@@ -172,9 +172,11 @@ jobs:
 
           if [ -z "$TAG_REF_NAME" ]; then
             if [ -n "$TAG_VERSION" ]; then
+              # the runtime base image has no rebuild suffix: 6.74.34-1 builds on base 6.74.34
               TAG_REF_NAME=$(python3 workflow/scripts/resolve_release_tag.py \
                 --config "$IN_CONFIG_FILE" \
                 --requirements "$IN_REQUIREMENTS_FILE" \
+                --strip-suffix \
                 --input-release-tag "" || true)
             fi
 

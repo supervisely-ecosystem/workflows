@@ -43,6 +43,12 @@ def compare_semver(version1: str, version2: str):
     return 0
 
 
+def sdk_version_from_image_tag(tag: str):
+    """SDK version from an image tag: `6.74.34` and its rebuilds `6.74.34-1` -> `6.74.34`; None for other tags."""
+    match = re.fullmatch(r"v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.\-]+)?", tag)
+    return match.group(1) if match else None
+
+
 def is_valid_version(version: str):
     return re.fullmatch(r"v\d+\.\d+\.\d+", version) != None
 
@@ -1014,13 +1020,11 @@ def validate_instance_version(
             print(
                 f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK."
             )
-            sdk_version = image_version
-            if re.search(r"[^\d.]", image_version):
-                normalized_image_version = re.sub(r"[^\d.]", "", image_version)
+            sdk_version = sdk_version_from_image_tag(image_version) or image_version
+            if sdk_version != image_version:
                 print(
-                    f"INFO: Normalized docker image version for SDK check: {image_version} -> {normalized_image_version}"
+                    f"INFO: Normalized docker image version for SDK check: {image_version} -> {sdk_version}"
                 )
-                sdk_version = normalized_image_version
         elif image_name in standard_docker_images:
             print(
                 f"INFO: Docker image {image_name} is in the list of standard docker images."
@@ -1028,7 +1032,7 @@ def validate_instance_version(
             print(
                 f"INFO: Assuming that the version of the docker image ({image_version}) is a version of the supervisely Python SDK."
             )
-            sdk_version = image_version
+            sdk_version = sdk_version_from_image_tag(image_version) or image_version
         else:
             print(
                 f"INFO: Docker image {image_name} is not in the list of standard docker images."
