@@ -7,6 +7,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+# caller templates, copied into app repositories
+TEMPLATES = sorted((ROOT / "templates").glob("*.yml"))
 
 # refs of supervisely-ecosystem/workflows that are known to exist / be safe
 ALLOWED_WORKFLOWS_REFS = {None, "master", "${{ inputs.workflows_ref }}"}
@@ -16,7 +18,7 @@ def load(path):
     return yaml.safe_load(path.read_text())
 
 
-@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+@pytest.mark.parametrize("path", WORKFLOWS + TEMPLATES, ids=lambda p: p.name)
 def test_workflow_is_valid_yaml(path):
     data = load(path)
     # PyYAML (YAML 1.1) reads the `on:` key as boolean True
@@ -29,7 +31,7 @@ def _steps(data):
             yield step
 
 
-@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+@pytest.mark.parametrize("path", WORKFLOWS + TEMPLATES, ids=lambda p: p.name)
 def test_helper_checkout_uses_existing_ref(path):
     """H-1: update_models_common.yml checked out the deleted branch runner-updates."""
     for step in _steps(load(path)):
@@ -91,3 +93,41 @@ def test_inputs_and_secrets_are_not_interpolated_into_scripts(name):
         script = step.get("run", "")
         assert "${{ inputs." not in script, step.get("name")
         assert "${{ secrets." not in script, step.get("name")
+
+
+def test_templates_do_not_run_in_this_repository():
+    """L-8: templates in .github/workflows ran on every push to this repository."""
+    names = {p.name for p in WORKFLOWS}
+    assert not names & {"release.yml", "release_branch.yml", "build_release_branch.yml", "publish.yml"}
+    assert {p.name for p in TEMPLATES} >= {"release.yml", "release_branch.yml", "build_release_branch.yml"}
+
+
+@pytest.mark.parametrize("path", TEMPLATES, ids=lambda p: p.name)
+def test_templates_call_this_repo_at_master(path):
+    """build_release_branch.yml called the builder @build-test-image, a deleted branch."""
+    for job in load(path)["jobs"].values():
+        uses = job.get("uses", "")
+        if uses.startswith("supervisely-ecosystem/workflows/"):
+            assert uses.endswith("@master"), (path.name, uses)
+
+
+RUNNER_TOKENS = [
+    "SUPERVISELY_PROD_API_TOKEN",
+    "SUPERVISELY_DEV_API_TOKEN",
+    "SUPERVISELY_PRIVATE_DEV_API_TOKEN",
+    "SUPERVISELY_GITHUB_ACCESS_TOKEN",
+    "SUPERVISELY_SDK_GITHUB_ACCESS_TOKEN",
+]
+
+
+@pytest.mark.parametrize("name", ["common.yml", "sync_models_common.yml", "update_models_common.yml"])
+def test_runner_jobs_mask_tokens_first(name):
+    """C-1 (option A): tokens from the runner environment are not GitHub secrets, so not masked."""
+    for job in _workflow(name)["jobs"].values():
+        if job.get("runs-on") != "gha-runner-supervisely-ecosystem":
+            continue
+        first = job["steps"][0]
+        assert first.get("name") == "Mask release credentials", name
+        assert "::add-mask::" in first["run"]
+        for token in RUNNER_TOKENS:
+            assert token in first["run"], (name, token)
