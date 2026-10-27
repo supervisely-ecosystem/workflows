@@ -158,7 +158,7 @@ jobs:
         run: |
           TAG_VERSION="$IN_TAG_VERSION"
           TAG_REF_NAME="$IN_TAG_REF_NAME"
-          . $HOME/.venv_hardened/bin/activate
+          . "$HOME/.venv_hardened/bin/activate"
           if [ -z "$TAG_VERSION" ]; then
             TAG_VERSION=$(python3 workflow/scripts/resolve_release_tag.py \
               --config "$IN_CONFIG_FILE" \
@@ -308,9 +308,11 @@ jobs:
           else
             echo "No Hugging Face token secret provided"
           fi
-          echo "BUILD_SECRET_OPT=$BUILD_SECRET_OPT" >> "$GITHUB_ENV"
-          echo "BUILD_SECRET_DIR=$BUILD_SECRET_DIR" >> "$GITHUB_ENV"
-          echo "BUILD_SECRET_FILE=$BUILD_SECRET_FILE" >> "$GITHUB_ENV"
+          {
+            echo "BUILD_SECRET_OPT=$BUILD_SECRET_OPT"
+            echo "BUILD_SECRET_DIR=$BUILD_SECRET_DIR"
+            echo "BUILD_SECRET_FILE=$BUILD_SECRET_FILE"
+          } >> "$GITHUB_ENV"
 
       - name: Build image archive for checks
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
@@ -336,6 +338,7 @@ jobs:
             DOCKER_TARGET_OPT="--opt target=${IN_DOCKER_TARGET}"
           fi
 
+          # shellcheck disable=SC2086 # the *_OPT variables hold zero or more flags
           buildctl build \
             --frontend dockerfile.v0 \
             --local "context=${GITHUB_WORKSPACE}" \
@@ -356,7 +359,7 @@ jobs:
         run: |
           mkdir -p audit_logs
           syft -q "docker-archive:image.tar" -o json > audit_logs/syft-image.json
-          . $HOME/.venv_hardened/bin/activate
+          . "$HOME/.venv_hardened/bin/activate"
           python3 workflow/scripts/get_image_packages.py \
             --syft-json audit_logs/syft-image.json \
             --output-requirements audit_logs/image_python_requirements.txt
@@ -375,7 +378,7 @@ jobs:
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
         run: |
           mkdir -p dockle_logs
-          dockle --exit-code 1 --exit-level FATAL --input image.tar -af settings.py --format json --output dockle_logs/${IMAGE_NAME_SAFE}.json
+          dockle --exit-code 1 --exit-level FATAL --input image.tar -af settings.py --format json --output "dockle_logs/${IMAGE_NAME_SAFE}.json"
 
       - name: Generate SBOM (SPDX JSON)
         if: ${{ env.TAG_EXISTS != 'true' && inputs.cve_checks }}
@@ -407,6 +410,7 @@ jobs:
             DOCKER_TARGET_OPT="--opt target=${IN_DOCKER_TARGET}"
           fi
 
+          # shellcheck disable=SC2086 # the *_OPT variables hold zero or more flags
           buildctl build \
             --frontend dockerfile.v0 \
             --local "context=${GITHUB_WORKSPACE}" \
@@ -445,6 +449,7 @@ jobs:
             DOCKER_TARGET_OPT="--opt target=${IN_DOCKER_TARGET}"
           fi
 
+          # shellcheck disable=SC2086 # the *_OPT variables hold zero or more flags
           buildctl build \
             --frontend dockerfile.v0 \
             --local "context=${GITHUB_WORKSPACE}" \

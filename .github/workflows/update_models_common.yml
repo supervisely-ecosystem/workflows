@@ -54,7 +54,7 @@ jobs:
       - name: Get Models Path and Framework
         id: get_inputs
         run: |
-          . $HOME/.release_venv/bin/activate
+          . "$HOME/.release_venv/bin/activate"
           python workflow/get_inputs.py
         env:
           MODELS_PATH: ${{ inputs.MODELS_PATH }}
@@ -62,7 +62,7 @@ jobs:
 
       - name: Sync models
         run: |
-          . $HOME/.release_venv/bin/activate
+          . "$HOME/.release_venv/bin/activate"
           python workflow/update_models.py
         env:
           DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
