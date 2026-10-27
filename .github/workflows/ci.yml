@@ -17,8 +17,8 @@ jobs:
     steps:
       - name: Check out
         run: |
-          git init -q .
-          git fetch -q --depth 1 "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
+          git init -q .  # full history: two test files compare against an older commit
+          git fetch -q "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
           git checkout -q FETCH_HEAD
       - name: Install test dependencies
         run: |
@@ -32,8 +32,8 @@ jobs:
     steps:
       - name: Check out
         run: |
-          git init -q .
-          git fetch -q --depth 1 "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
+          git init -q .  # full history: two test files compare against an older commit
+          git fetch -q "https://github.com/$GITHUB_REPOSITORY" "$GITHUB_SHA"
           git checkout -q FETCH_HEAD
       # runner labels are listed in .github/actionlint.yaml
       - name: Lint workflows
