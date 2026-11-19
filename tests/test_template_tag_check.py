@@ -67,11 +67,17 @@ def test_existing_tag_of_a_private_image(tag_check):
     assert "--raw docker://docker.io/supervisely/my-app:6.74.34" in argv[0]
 
 
-def test_missing_tag(tag_check):
-    proc, exported, argv, _ = tag_check([f"2|{MANIFEST_UNKNOWN}"])
+@pytest.mark.parametrize("unknown", [
+    MANIFEST_UNKNOWN,
+    "reading manifest 1.0 in docker.io/supervisely/new-app: name unknown: repository name not known to registry",
+])
+@pytest.mark.parametrize("code", ["2", "1"])
+def test_missing_tag(tag_check, code, unknown):
+    """Older skopeo exits 1, not 2, for an unknown manifest or repository; the runner's does."""
+    proc, exported, argv, slept = tag_check([f"{code}|{unknown}"])
     assert proc.returncode == 0, proc.stderr
     assert exported["TAG_EXISTS"] == "false"
-    assert len(argv) == 1
+    assert len(argv) == 1 and slept == []
 
 
 def test_runner_credentials_by_default(tag_check):

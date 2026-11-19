@@ -211,14 +211,19 @@ jobs:
           ERR_FILE=$(mktemp)
           trap 'rm -f "$ERR_FILE"' EXIT
 
-          # skopeo exits 0 when the tag exists and 2 when the registry does not know it (nor the
-          # repository). Docker Hub rate-limits (429) and has transient 5xx/network errors:
-          # retry those with a linear backoff (15+30+45+60 s) before giving up. A refusal is no
-          # answer either, but retrying does not change it.
+          # skopeo exits 0 when the tag exists. When the registry does not know the tag (nor the
+          # repository) it answers "manifest unknown" or "name unknown": recent skopeo (1.22)
+          # exits 2 then, older ones such as the runner's exit 1, so the message decides. Docker
+          # Hub rate-limits (429) and has transient 5xx/network errors: retry those with a linear
+          # backoff (15+30+45+60 s) before giving up. A refusal is no answer either, but retrying
+          # does not change it.
           MAX_ATTEMPTS=5
           for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
             RC=0
             skopeo --command-timeout 60s inspect "${CREDS_OPT[@]}" --raw "$IMAGE_REF" > /dev/null 2> "$ERR_FILE" || RC=$?
+            if [ "$RC" != "0" ] && grep -qiE 'manifest unknown|name unknown' "$ERR_FILE"; then
+              RC=2
+            fi
             case "$RC" in
               0|2) break ;;
             esac
