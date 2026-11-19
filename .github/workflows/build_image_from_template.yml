@@ -83,7 +83,7 @@ on:
         description: "Hugging Face token provided to Docker builds as BuildKit secret id=hf_token"
         required: false
       DOCKERHUB_USERNAME:
-        description: "Docker Hub user for pushing the scanned image (cve_checks); optional, runner credentials are used otherwise"
+        description: "Docker Hub user for the tag check and for pushing the scanned image (cve_checks); optional, runner credentials are used otherwise"
         required: false
       DOCKERHUB_TOKEN:
         description: "Docker Hub token for DOCKERHUB_USERNAME"
@@ -191,6 +191,8 @@ jobs:
       - name: Validate tag in Docker Hub
         env:
           SKIP_TAG_CHECK: ${{ inputs.skip_tag_check }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           if [ "$SKIP_TAG_CHECK" = "true" ]; then
             echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
@@ -198,35 +200,50 @@ jobs:
             exit 0
           fi
 
-          TAG_URL="https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${TAG_VERSION}"
-          # Docker Hub rate-limits (429) and has transient 5xx/network errors:
-          # retry those with a linear backoff (15+30+45+60 s) before giving up.
+          # Read the registry with the credentials that push the image: the public Docker Hub
+          # API answers 404 for every tag of a private repository, and an existing tag taken
+          # for a missing one gets rebuilt and overwritten.
+          CREDS_OPT=()
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            CREDS_OPT=(--creds "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}")
+          fi
+          IMAGE_REF="docker://docker.io/${IMAGE_NAME}:${TAG_VERSION}"
+          ERR_FILE=$(mktemp)
+          trap 'rm -f "$ERR_FILE"' EXIT
+
+          # skopeo exits 0 when the tag exists and 2 when the registry does not know it (nor the
+          # repository). Docker Hub rate-limits (429) and has transient 5xx/network errors:
+          # retry those with a linear backoff (15+30+45+60 s) before giving up. A refusal is no
+          # answer either, but retrying does not change it.
           MAX_ATTEMPTS=5
           for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
-            HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 "$TAG_URL" || true)
-            HTTP_CODE=${HTTP_CODE:-000}  # 000 = no HTTP answer (DNS, timeout, reset)
-            case "$HTTP_CODE" in
-              429|5[0-9][0-9]|000)
-                if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-                  DELAY=$((ATTEMPT * 15))
-                  echo "Docker Hub answered HTTP ${HTTP_CODE} (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); retrying in ${DELAY}s" >&2
-                  sleep "$DELAY"
-                  continue
-                fi
-                ;;
+            RC=0
+            skopeo --command-timeout 60s inspect "${CREDS_OPT[@]}" --raw "$IMAGE_REF" > /dev/null 2> "$ERR_FILE" || RC=$?
+            case "$RC" in
+              0|2) break ;;
             esac
-            break
+            if grep -qiE 'unauthorized|denied|authentication required' "$ERR_FILE"; then
+              cat "$ERR_FILE" >&2
+              echo "Docker Hub refused to show ${IMAGE_NAME}: check the runner's Docker Hub credentials or the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets." >&2
+              exit 1
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              DELAY=$((ATTEMPT * 15))
+              echo "Docker Hub did not answer (attempt ${ATTEMPT}/${MAX_ATTEMPTS}): $(tail -n 1 "$ERR_FILE"); retrying in ${DELAY}s" >&2
+              sleep "$DELAY"
+            fi
           done
 
-          if [ "$HTTP_CODE" = "200" ]; then
+          if [ "$RC" = "0" ]; then
             echo "TAG_EXISTS=true" >> "$GITHUB_ENV"
             echo "Docker image tag already exists: ${IMAGE_NAME}:${TAG_VERSION}"
             echo "All subsequent steps will be skipped"
-          elif [ "$HTTP_CODE" = "404" ]; then
+          elif [ "$RC" = "2" ]; then
             echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
             echo "Tag is available: ${IMAGE_NAME}:${TAG_VERSION}"
           else
-            echo "Unable to validate tag existence on Docker Hub (HTTP ${HTTP_CODE})." >&2
+            cat "$ERR_FILE" >&2
+            echo "Unable to validate tag existence on Docker Hub (skopeo exit code ${RC})." >&2
             exit 1
           fi
 
