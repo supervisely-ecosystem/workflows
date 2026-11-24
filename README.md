@@ -171,6 +171,24 @@ SUBAPP_PATHS: "train, serve"
 SUBAPP_PATHS: "__ROOT_APP__"
 ```
 
+# Image builds
+
+`build_image.yml` and `build_image_from_template.yml` push layers compressed with gzip, which any
+Docker can pull. For a large image, pass `compression: zstd`: the layers are recompressed with zstd
+(level `compression_level`, default 7) and pushed with OCI media types, the platform's own setting.
+The download is smaller and unpacks faster, but pulling it needs Docker 23+ or containerd 1.5+, so
+mention that requirement in the app's README.
+
+```yaml
+jobs:
+  docker-build-and-push:
+    uses: supervisely-ecosystem/workflows/.github/workflows/build_image.yml@master
+    with:
+      tag_version: ${{ github.event.inputs.tag_version }}
+      dockerfile_path: docker/Dockerfile
+      compression: zstd
+```
+
 # Models Release and Updates
 
 ## Configuration Discovery Rules

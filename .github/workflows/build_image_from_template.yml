@@ -78,6 +78,16 @@ on:
         required: false
         type: boolean
         default: true
+      compression:
+        description: "Layer compression of the pushed image: gzip (default) or zstd (smaller download, faster unpack; pulling it needs Docker 23+ / containerd 1.5+)"
+        required: false
+        type: string
+        default: "gzip"
+      compression_level:
+        description: "zstd compression level, 1-22 (used only with compression: zstd)"
+        required: false
+        type: number
+        default: 7
     secrets:
       HF_TOKEN:
         description: "Hugging Face token provided to Docker builds as BuildKit secret id=hf_token"
@@ -109,6 +119,8 @@ jobs:
       IN_EXTRA_BUILDER_LIBS: ${{ inputs.extra_builder_libs }}
       IN_NO_CACHE_REQUIREMENTS: ${{ inputs.no_cache_requirements }}
       IN_BUILD_CACHE: ${{ inputs.build_cache }}
+      IN_COMPRESSION: ${{ inputs.compression }}
+      IN_COMPRESSION_LEVEL: ${{ inputs.compression_level }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -142,6 +154,33 @@ jobs:
           echo "Runtime base image: $IN_RUNTIME_BASE_IMAGE"
           echo "No cache requirements: $IN_NO_CACHE_REQUIREMENTS"
           echo "Build cache: $IN_BUILD_CACHE"
+
+      - name: Prepare layer compression
+        run: |
+          # gzip, the default, leaves buildctl's --output and skopeo's push as they always were.
+          # zstd is the platform's setting: every layer (cached ones too) recompressed with zstd,
+          # OCI media types. With cve_checks skopeo pushes the scanned archive: it reads the layers
+          # uncompressed and compresses them on the push.
+          case "$IN_COMPRESSION" in
+            ""|gzip)
+              echo "Layer compression: gzip (default)"
+              exit 0
+              ;;
+            zstd) ;;
+            *)
+              echo "Unknown compression '$IN_COMPRESSION': use gzip or zstd." >&2
+              exit 1
+              ;;
+          esac
+          if ! [[ "$IN_COMPRESSION_LEVEL" =~ ^[0-9]+$ ]] || [ "$IN_COMPRESSION_LEVEL" -lt 1 ] || [ "$IN_COMPRESSION_LEVEL" -gt 22 ]; then
+            echo "compression_level must be an integer from 1 to 22, got '$IN_COMPRESSION_LEVEL'." >&2
+            exit 1
+          fi
+          {
+            echo "OUTPUT_COMPRESSION=,compression=zstd,compression-level=${IN_COMPRESSION_LEVEL},force-compression=true,oci-mediatypes=true"
+            echo "SKOPEO_COMPRESSION_OPT=--format oci --dest-compress-format zstd --dest-compress-level ${IN_COMPRESSION_LEVEL}"
+          } >> "$GITHUB_ENV"
+          echo "Layer compression: zstd level ${IN_COMPRESSION_LEVEL} (pulling needs Docker 23+ / containerd 1.5+)"
 
       - name: Prepare runtime base image
         run: |
@@ -445,7 +484,7 @@ jobs:
             ${RUNTIME_BASE_IMAGE_OPT} \
             ${CACHEBUST_OPT} \
             ${BUILD_SECRET_OPT} \
-            --output "type=image,name=docker.io/${IMAGE_NAME}:${TAG_VERSION},push=true" \
+            --output "type=image,name=docker.io/${IMAGE_NAME}:${TAG_VERSION},push=true${OUTPUT_COMPRESSION:-}" \
             "${CACHE_OPTS[@]}"
 
       - name: Build and push Docker Image ${{ env.IMAGE_NAME }}:latest
@@ -484,7 +523,7 @@ jobs:
             ${RUNTIME_BASE_IMAGE_OPT} \
             ${CACHEBUST_OPT} \
             ${BUILD_SECRET_OPT} \
-            --output "type=image,name=docker.io/${IMAGE_NAME}:latest,push=true" \
+            --output "type=image,name=docker.io/${IMAGE_NAME}:latest,push=true${OUTPUT_COMPRESSION:-}" \
             "${CACHE_OPTS[@]}"
 
       - name: Push scanned image archive
@@ -493,13 +532,16 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          # shellcheck disable=SC2086 # SKOPEO_COMPRESSION_OPT holds zero or more flags
           if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
             skopeo copy \
               --dest-creds "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
+              ${SKOPEO_COMPRESSION_OPT:-} \
               docker-archive:image.tar \
               "docker://docker.io/${IMAGE_NAME}:${TAG_VERSION}"
           else
             skopeo copy \
+              ${SKOPEO_COMPRESSION_OPT:-} \
               docker-archive:image.tar \
               "docker://docker.io/${IMAGE_NAME}:${TAG_VERSION}"
           fi
