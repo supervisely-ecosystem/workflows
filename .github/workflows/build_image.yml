@@ -26,6 +26,16 @@ on:
         required: false
         type: boolean
         default: false
+      compression:
+        description: "Layer compression of the pushed image: gzip (default) or zstd (smaller download, faster unpack; pulling it needs Docker 23+ / containerd 1.5+)"
+        required: false
+        type: string
+        default: "gzip"
+      compression_level:
+        description: "zstd compression level, 1-22 (used only with compression: zstd)"
+        required: false
+        type: number
+        default: 7
     secrets:
       DOCKERHUB_USERNAME:
         required: false
@@ -46,6 +56,8 @@ jobs:
       IN_IMAGE_NAME: ${{ inputs.image_name }}
       IN_SDK_VERSION: ${{ inputs.sdk_version }}
       IN_LATEST_TAG: ${{ inputs.latest_tag }}
+      IN_COMPRESSION: ${{ inputs.compression }}
+      IN_COMPRESSION_LEVEL: ${{ inputs.compression_level }}
     steps:
       - name: Info
         run: |
@@ -60,6 +72,28 @@ jobs:
           echo "Image name: $IMAGE_NAME"
           echo "Tag version: $IN_TAG_VERSION"
           echo "Dockerfile path: $IN_DOCKERFILE_PATH"
+
+      - name: Prepare layer compression
+        run: |
+          # gzip, the default, leaves buildctl's --output as it always was. zstd is the platform's
+          # setting: every layer (cached ones too) recompressed with zstd, OCI media types.
+          case "$IN_COMPRESSION" in
+            ""|gzip)
+              echo "Layer compression: gzip (default)"
+              exit 0
+              ;;
+            zstd) ;;
+            *)
+              echo "Unknown compression '$IN_COMPRESSION': use gzip or zstd." >&2
+              exit 1
+              ;;
+          esac
+          if ! [[ "$IN_COMPRESSION_LEVEL" =~ ^[0-9]+$ ]] || [ "$IN_COMPRESSION_LEVEL" -lt 1 ] || [ "$IN_COMPRESSION_LEVEL" -gt 22 ]; then
+            echo "compression_level must be an integer from 1 to 22, got '$IN_COMPRESSION_LEVEL'." >&2
+            exit 1
+          fi
+          echo "OUTPUT_COMPRESSION=,compression=zstd,compression-level=${IN_COMPRESSION_LEVEL},force-compression=true,oci-mediatypes=true" >> "$GITHUB_ENV"
+          echo "Layer compression: zstd level ${IN_COMPRESSION_LEVEL} (pulling needs Docker 23+ / containerd 1.5+)"
 
       - uses: actions/checkout@v6
         with:
@@ -109,7 +143,7 @@ jobs:
             --local "context=${GITHUB_WORKSPACE}" \
             --local "dockerfile=$(dirname "$IN_DOCKERFILE_PATH")" \
             --opt "filename=$(basename "$IN_DOCKERFILE_PATH")" \
-            --output "type=image,name=docker.io/${IMAGE_NAME}:${IN_TAG_VERSION},push=true" \
+            --output "type=image,name=docker.io/${IMAGE_NAME}:${IN_TAG_VERSION},push=true${OUTPUT_COMPRESSION:-}" \
             --export-cache "type=registry,ref=docker.io/${IMAGE_NAME}:buildcache,mode=max" \
             --import-cache "type=registry,ref=docker.io/${IMAGE_NAME}:buildcache"
 
@@ -121,5 +155,5 @@ jobs:
             --local "context=${GITHUB_WORKSPACE}" \
             --local "dockerfile=$(dirname "$IN_DOCKERFILE_PATH")" \
             --opt "filename=$(basename "$IN_DOCKERFILE_PATH")" \
-            --output "type=image,name=docker.io/${IMAGE_NAME}:latest,push=true" \
+            --output "type=image,name=docker.io/${IMAGE_NAME}:latest,push=true${OUTPUT_COMPRESSION:-}" \
             --import-cache "type=registry,ref=docker.io/${IMAGE_NAME}:buildcache"
